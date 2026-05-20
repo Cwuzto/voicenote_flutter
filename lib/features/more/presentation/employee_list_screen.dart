@@ -1,0 +1,486 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../data/employee_repository.dart';
+
+class EmployeeListScreen extends StatefulWidget {
+  const EmployeeListScreen({super.key});
+
+  @override
+  State<EmployeeListScreen> createState() => _EmployeeListScreenState();
+}
+
+class _EmployeeListScreenState extends State<EmployeeListScreen> {
+  final EmployeeRepository _repository = EmployeeRepository();
+  final List<EmployeeVm> _employees = [];
+  bool _loading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadEmployees());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addEmployee,
+        backgroundColor: const Color(0xFF1565FF),
+        child: const Icon(Icons.add, color: Colors.white),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFEFF6FF), Color(0xFFF8FAFC), Color(0xFFE0ECFF)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _Header(
+                title: 'Quan ly nhan vien',
+                onBack: () => Navigator.pop(context),
+              ),
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(
+                        color: Color(0xFFB91C1C),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              Expanded(child: _buildBody()),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_employees.isEmpty) {
+      return const Center(
+        child: Text(
+          'Chua co nhan vien nao',
+          style: TextStyle(color: Color(0xFF6B7280)),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 88),
+      itemCount: _employees.length,
+      itemBuilder: (context, index) {
+        final item = _employees[index];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE5EAF2),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  _initials(item.name),
+                  style: const TextStyle(
+                    color: Color(0xFF1565FF),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                        if (!item.isActive)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEE2E2),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              'Vo hieu hoa',
+                              style: TextStyle(
+                                color: Color(0xFFB91C1C),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    Text(
+                      item.email,
+                      style: const TextStyle(color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                onSelected: (action) => _handleAction(action, item),
+                itemBuilder: (context) => [
+                  const PopupMenuItem(value: 'edit', child: Text('Sua')),
+                  PopupMenuItem(
+                    value: 'toggle',
+                    child: Text(item.isActive ? 'Vo hieu hoa' : 'Kich hoat'),
+                  ),
+                  const PopupMenuItem(value: 'delete', child: Text('Xoa')),
+                ],
+                child: const Icon(Icons.more_vert_rounded),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _loadEmployees() async {
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
+    try {
+      final data = await _repository.fetchEmployees();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _employees
+          ..clear()
+          ..addAll(data);
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleAction(String action, EmployeeVm item) async {
+    if (action == 'delete') {
+      final ok = await _confirmDelete(item.name);
+      if (!ok || !mounted) {
+        return;
+      }
+      try {
+        await _repository.deleteEmployee(item.employeeId);
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _employees.removeWhere((e) => e.employeeId == item.employeeId);
+        });
+        _showMessage('Da xoa');
+      } catch (e) {
+        _showMessage(e.toString());
+      }
+      return;
+    }
+
+    if (action == 'toggle') {
+      try {
+        final updated = await _repository.updateEmployee(
+          employee: item,
+          fullName: item.name,
+          isActive: !item.isActive,
+        );
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          final index = _employees.indexWhere(
+            (e) => e.employeeId == item.employeeId,
+          );
+          if (index >= 0) {
+            _employees[index] = updated;
+          }
+        });
+        _showMessage(updated.isActive ? 'Da kich hoat' : 'Da vo hieu hoa');
+      } catch (e) {
+        _showMessage(e.toString());
+      }
+      return;
+    }
+
+    await _editEmployee(item);
+  }
+
+  Future<void> _addEmployee() async {
+    final payload = await _showEmployeeDialog();
+    if (payload == null || !mounted) {
+      return;
+    }
+    try {
+      final created = await _repository.addEmployee(
+        fullName: payload.name,
+        email: payload.email,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _employees.insert(0, created);
+      });
+      _showMessage('Da them');
+    } catch (e) {
+      _showMessage(e.toString());
+    }
+  }
+
+  Future<void> _editEmployee(EmployeeVm employee) async {
+    final payload = await _showEmployeeDialog(employee: employee);
+    if (payload == null || !mounted) {
+      return;
+    }
+    try {
+      final updated = await _repository.updateEmployee(
+        employee: employee,
+        fullName: payload.name,
+        isActive: payload.isActive,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        final index = _employees.indexWhere(
+          (e) => e.employeeId == employee.employeeId,
+        );
+        if (index >= 0) {
+          _employees[index] = updated;
+        }
+      });
+      _showMessage('Da cap nhat');
+    } catch (e) {
+      _showMessage(e.toString());
+    }
+  }
+
+  Future<_EmployeeDialogPayload?> _showEmployeeDialog({EmployeeVm? employee}) {
+    final isEdit = employee != null;
+    final nameController = TextEditingController(text: employee?.name ?? '');
+    final emailController = TextEditingController(text: employee?.email ?? '');
+    var isActive = employee?.isActive ?? true;
+
+    return showDialog<_EmployeeDialogPayload>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: Text(isEdit ? 'Sua nhan vien' : 'Them nhan vien'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(labelText: 'Ho ten'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: emailController,
+                    enabled: !isEdit,
+                    decoration: const InputDecoration(labelText: 'Email'),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Text('Kich hoat'),
+                      const Spacer(),
+                      Switch(
+                        value: isActive,
+                        onChanged: (value) {
+                          setDialogState(() {
+                            isActive = value;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  if (!isEdit)
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Luu y: Email phai ton tai san trong he thong.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF6B7280),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Huy'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final name = nameController.text.trim();
+                    final email = emailController.text.trim();
+                    if (name.isEmpty || email.isEmpty || !email.contains('@')) {
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        const SnackBar(
+                          content: Text('Vui long nhap day du thong tin'),
+                        ),
+                      );
+                      return;
+                    }
+                    Navigator.pop(
+                      dialogContext,
+                      _EmployeeDialogPayload(
+                        name: name,
+                        email: email.toLowerCase(),
+                        isActive: isActive,
+                      ),
+                    );
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF1565FF),
+                  ),
+                  child: const Text('Luu'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<bool> _confirmDelete(String name) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Xoa nhan vien'),
+          content: Text('Ban co chac muon xoa $name?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Huy'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+              ),
+              child: const Text('Xoa'),
+            ),
+          ],
+        );
+      },
+    );
+    return result == true;
+  }
+
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) {
+      return '?';
+    }
+    if (parts.length == 1) {
+      return parts.first.substring(0, 1).toUpperCase();
+    }
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+        .toUpperCase();
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _EmployeeDialogPayload {
+  const _EmployeeDialogPayload({
+    required this.name,
+    required this.email,
+    required this.isActive,
+  });
+
+  final String name;
+  final String email;
+  final bool isActive;
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.title, required this.onBack});
+
+  final String title;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 56,
+      child: Row(
+        children: [
+          IconButton(onPressed: onBack, icon: const Icon(Icons.close_rounded)),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
