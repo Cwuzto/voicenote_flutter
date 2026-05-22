@@ -37,6 +37,7 @@ class _SaleScreenState extends State<SaleScreen> {
   bool _voiceCancelled = false;
   bool _voiceAutoSubmitted = false;
   bool _searchExpanded = false;
+  String _activeQuickCategory = 'Tất cả';
   String? _voiceHint;
   final ValueNotifier<double> _soundLevelNotifier = ValueNotifier<double>(0);
   bool get _listening => _voiceController.isListening;
@@ -73,9 +74,10 @@ class _SaleScreenState extends State<SaleScreen> {
         final mediaQuery = MediaQuery.of(context);
         final screenHeight = mediaQuery.size.height;
         final keyboardVisible = mediaQuery.viewInsets.bottom > 0;
+        final keyboardHeight = mediaQuery.viewInsets.bottom;
         final panelHeight = keyboardVisible
-            ? 180.0
-            : (screenHeight < 700 ? 190.0 : 220.0);
+            ? keyboardHeight.clamp(220.0, 360.0)
+            : (screenHeight < 700 ? 260.0 : 320.0);
         final gridPanelVisible = _state.panelMode == SaleBottomPanelMode.grid;
         return Scaffold(
           resizeToAvoidBottomInset: false,
@@ -133,7 +135,7 @@ class _SaleScreenState extends State<SaleScreen> {
                         ],
                       ),
                     ),
-                    if (_state.panelMode == SaleBottomPanelMode.listening)
+                    if (_state.panelMode != SaleBottomPanelMode.none)
                       _buildQuickBar(),
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 220),
@@ -157,7 +159,7 @@ class _SaleScreenState extends State<SaleScreen> {
                           ? _buildListeningPanel(height: panelHeight)
                           : const SizedBox.shrink(),
                     ),
-                    if (_state.panelMode != SaleBottomPanelMode.listening)
+                    if (_state.panelMode == SaleBottomPanelMode.none)
                       _buildQuickBar(),
                   ],
                 ),
@@ -328,9 +330,11 @@ class _SaleScreenState extends State<SaleScreen> {
   }
 
   Widget _buildQuickGrid({required double height}) {
+    final categories = _quickCategories();
+    final filteredProducts = _filteredQuickProducts();
     final items = <Widget>[
       _AddQuickItem(onTap: _showAddQuickProductDialog),
-      ..._state.quickProducts.map(
+      ...filteredProducts.map(
         (p) => _QuickChipItem(
           product: p,
           onTap: () => _state.addQuickProductToCart(p),
@@ -343,17 +347,66 @@ class _SaleScreenState extends State<SaleScreen> {
       key: const ValueKey('quick-grid'),
       height: height,
       color: Colors.white,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       child: _state.loadingProducts
           ? const Center(child: CircularProgressIndicator())
-          : GridView.count(
-              crossAxisCount: 4,
-              mainAxisSpacing: 6,
-              crossAxisSpacing: 6,
-              childAspectRatio: 0.84,
-              children: items,
+          : Column(
+              children: [
+                SizedBox(
+                  height: 34,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: categories.length,
+                    separatorBuilder: (_, _) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final category = categories[index];
+                      final selected = category == _activeQuickCategory;
+                      return ChoiceChip(
+                        label: Text(category),
+                        selected: selected,
+                        onSelected: (_) {
+                          setState(() {
+                            _activeQuickCategory = category;
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: GridView.count(
+                    crossAxisCount: 4,
+                    mainAxisSpacing: 6,
+                    crossAxisSpacing: 6,
+                    childAspectRatio: 0.84,
+                    children: items,
+                  ),
+                ),
+              ],
             ),
     );
+  }
+
+  List<String> _quickCategories() {
+    final categories = <String>{'Tất cả'};
+    for (final p in _state.quickProducts) {
+      final category = p.categoryName.trim().isEmpty ? 'Khác' : p.categoryName;
+      categories.add(category);
+    }
+    final list = categories.toList();
+    list.remove('Tất cả');
+    list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return ['Tất cả', ...list];
+  }
+
+  List<SaleQuickProduct> _filteredQuickProducts() {
+    if (_activeQuickCategory == 'Tất cả') {
+      return _state.quickProducts.toList();
+    }
+    return _state.quickProducts
+        .where((p) => p.categoryName == _activeQuickCategory)
+        .toList();
   }
 
   Widget _buildListeningPanel({required double height}) {
@@ -583,198 +636,295 @@ class _SaleScreenState extends State<SaleScreen> {
         final hasText = _lineController.text.trim().isNotEmpty;
         final showExpandedSearch =
             _searchExpanded || hasText || _lineFocusNode.hasFocus;
-        final listeningMode = _state.panelMode == SaleBottomPanelMode.listening;
+        final hasBottomPanel = _state.panelMode != SaleBottomPanelMode.none;
         final micButtonShowsCancel = _listening;
         final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
         final bottomSpacing = keyboardInset > 0
             ? keyboardInset
-            : (listeningMode ? 0.0 : 12.0);
+            : (hasBottomPanel ? 0.0 : 12.0);
+        final suggestions = _buildProductSuggestions();
+        final showSuggestions =
+            _lineFocusNode.hasFocus &&
+            _state.panelMode == SaleBottomPanelMode.none &&
+            suggestions.isNotEmpty;
 
-        return Container(
-          margin: EdgeInsets.fromLTRB(12, 0, 12, bottomSpacing),
-          height: 70,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.95),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFDCE8FA)),
-          ),
-          child: Row(
-            children: [
-              InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: () {
-                  FocusScope.of(context).unfocus();
-                  _state.toggleGridPanel();
-                },
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFE5EAF2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.grid_view_rounded),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showSuggestions)
+              Container(
+                margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                constraints: const BoxConstraints(maxHeight: 220),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFDCE8FA)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.08),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  transitionBuilder: (child, animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: SizeTransition(
-                        sizeFactor: animation,
-                        axis: Axis.horizontal,
-                        axisAlignment: -1,
-                        child: child,
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  itemCount: suggestions.length,
+                  separatorBuilder: (_, _) =>
+                      const Divider(height: 1, indent: 12, endIndent: 12),
+                  itemBuilder: (context, index) {
+                    final product = suggestions[index];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(
+                        Icons.restaurant_menu_rounded,
+                        size: 18,
+                        color: Color(0xFF1565FF),
                       ),
+                      title: Text(
+                        product.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        _formatVnd(product.price),
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12,
+                        ),
+                      ),
+                      onTap: () => _addSuggestionToCart(product),
                     );
                   },
-                  child: showExpandedSearch
-                      ? AnimatedContainer(
-                          key: const ValueKey('search-expanded'),
-                          duration: const Duration(milliseconds: 180),
-                          curve: Curves.easeOutCubic,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: _lineFocusNode.hasFocus
-                                  ? const Color(
-                                      0xFF1565FF,
-                                    ).withValues(alpha: 0.35)
-                                  : const Color(0xFFE2E8F0),
-                            ),
-                            boxShadow: _lineFocusNode.hasFocus
-                                ? [
-                                    BoxShadow(
-                                      color: const Color(
-                                        0xFF1565FF,
-                                      ).withValues(alpha: 0.14),
-                                      blurRadius: 12,
-                                      spreadRadius: 1,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ]
-                                : null,
+                ),
+              ),
+            Container(
+              margin: EdgeInsets.fromLTRB(12, 0, 12, bottomSpacing),
+              height: 70,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFDCE8FA)),
+              ),
+              child: Row(
+                children: [
+                  InkWell(
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: () {
+                      FocusScope.of(context).unfocus();
+                      _state.toggleGridPanel();
+                    },
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFE5EAF2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.grid_view_rounded),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SizeTransition(
+                            sizeFactor: animation,
+                            axis: Axis.horizontal,
+                            axisAlignment: -1,
+                            child: child,
                           ),
-                          child: TextField(
-                            controller: _lineController,
-                            focusNode: _lineFocusNode,
-                            onTap: () {
-                              if (_state.panelMode !=
-                                  SaleBottomPanelMode.none) {
-                                _state.setPanelMode(SaleBottomPanelMode.none);
-                              }
-                            },
-                            onSubmitted: (_) => _addFromInput(),
-                            decoration: InputDecoration(
-                              hintText: 'Nhập tên hàng + giá',
-                              prefixIcon: const Icon(
-                                Icons.search_rounded,
-                                size: 20,
-                              ),
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
-                              ),
-                              border: OutlineInputBorder(
+                        );
+                      },
+                      child: showExpandedSearch
+                          ? AnimatedContainer(
+                              key: const ValueKey('search-expanded'),
+                              duration: const Duration(milliseconds: 180),
+                              curve: Curves.easeOutCubic,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
                                 borderRadius: BorderRadius.circular(999),
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
-                          ),
-                        )
-                      : InkWell(
-                          key: const ValueKey('search-collapsed'),
-                          borderRadius: BorderRadius.circular(999),
-                          onTap: _expandSearchInput,
-                          child: Container(
-                            height: 44,
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: const Color(0xFFE2E8F0),
-                              ),
-                            ),
-                            child: const Row(
-                              children: [
-                                Icon(
-                                  Icons.search_rounded,
-                                  size: 18,
-                                  color: Color(0xFF64748B),
+                                border: Border.all(
+                                  color: _lineFocusNode.hasFocus
+                                      ? const Color(
+                                          0xFF1565FF,
+                                        ).withValues(alpha: 0.35)
+                                      : const Color(0xFFE2E8F0),
                                 ),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Nhập tên hàng + giá',
-                                  style: TextStyle(
+                                boxShadow: _lineFocusNode.hasFocus
+                                    ? [
+                                        BoxShadow(
+                                          color: const Color(
+                                            0xFF1565FF,
+                                          ).withValues(alpha: 0.14),
+                                          blurRadius: 12,
+                                          spreadRadius: 1,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: TextField(
+                                controller: _lineController,
+                                focusNode: _lineFocusNode,
+                                onTap: () {
+                                  if (_state.panelMode !=
+                                      SaleBottomPanelMode.none) {
+                                    _state.setPanelMode(
+                                      SaleBottomPanelMode.none,
+                                    );
+                                  }
+                                },
+                                onSubmitted: (_) => _addFromInput(),
+                                decoration: InputDecoration(
+                                  hintText: 'Nhập số lượng + tên món + giá',
+                                  hintStyle: const TextStyle(
                                     color: Color(0xFF64748B),
                                     fontWeight: FontWeight.w500,
                                   ),
+                                  prefixIcon: const Icon(
+                                    Icons.search_rounded,
+                                    size: 16,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(999),
+                                    borderSide: BorderSide.none,
+                                  ),
                                 ),
-                              ],
+                              ),
+                            )
+                          : InkWell(
+                              key: const ValueKey('search-collapsed'),
+                              borderRadius: BorderRadius.circular(999),
+                              onTap: _expandSearchInput,
+                              child: Container(
+                                height: 44,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Icon(
+                                      Icons.search_rounded,
+                                      size: 16,
+                                      color: Color(0xFF64748B),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Nhập số lượng + tên món + giá',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Color(0xFF64748B),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              InkWell(
-                borderRadius: BorderRadius.circular(999),
-                onTap: _voiceBusy
-                    ? null
-                    : (micButtonShowsCancel
-                          ? _cancelVoice
-                          : (hasText ? _addFromInput : _handleVoiceTap)),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: micButtonShowsCancel
-                        ? const Color(0xFFDC2626)
-                        : hasText
-                        ? const Color(0xFF1565FF)
-                        : const Color(0xFFE5EAF2),
-                    shape: BoxShape.circle,
-                  ),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 140),
-                    transitionBuilder: (child, animation) {
-                      return ScaleTransition(scale: animation, child: child);
-                    },
-                    child: Icon(
-                      key: ValueKey('${hasText}_${_listening}_$_voiceBusy'),
-                      micButtonShowsCancel
-                          ? Icons.close_rounded
-                          : hasText
-                          ? Icons.send_rounded
-                          : (_listening
-                                ? Icons.stop_circle_outlined
-                                : (_voiceBusy
-                                      ? Icons.hourglass_top_rounded
-                                      : Icons.mic_rounded)),
-                      color: (hasText || micButtonShowsCancel)
-                          ? Colors.white
-                          : null,
                     ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: _voiceBusy
+                        ? null
+                        : (micButtonShowsCancel
+                              ? _cancelVoice
+                              : (hasText ? _addFromInput : _handleVoiceTap)),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: micButtonShowsCancel
+                            ? const Color(0xFFDC2626)
+                            : hasText
+                            ? const Color(0xFF1565FF)
+                            : const Color(0xFFE5EAF2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 140),
+                        transitionBuilder: (child, animation) {
+                          return ScaleTransition(
+                            scale: animation,
+                            child: child,
+                          );
+                        },
+                        child: Icon(
+                          key: ValueKey('${hasText}_${_listening}_$_voiceBusy'),
+                          micButtonShowsCancel
+                              ? Icons.close_rounded
+                              : hasText
+                              ? Icons.send_rounded
+                              : (_listening
+                                    ? Icons.stop_circle_outlined
+                                    : (_voiceBusy
+                                          ? Icons.hourglass_top_rounded
+                                          : Icons.mic_rounded)),
+                          color: (hasText || micButtonShowsCancel)
+                              ? Colors.white
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         );
       },
     );
+  }
+
+  List<SaleQuickProduct> _buildProductSuggestions() {
+    final query = _lineController.text.trim().toLowerCase();
+    final candidates = _state.quickProducts.where(
+      (p) => p.name.trim().isNotEmpty,
+    );
+    if (query.isEmpty) {
+      return candidates.take(6).toList();
+    }
+    return candidates
+        .where((p) => p.name.toLowerCase().contains(query))
+        .take(6)
+        .toList();
+  }
+
+  void _addSuggestionToCart(SaleQuickProduct product) {
+    _state.addQuickProductToCart(product);
+    _lineController.clear();
+    _lineFocusNode.requestFocus();
   }
 
   void _handleClose() {
@@ -842,7 +992,7 @@ class _SaleScreenState extends State<SaleScreen> {
 
   Future<void> _pickCustomerName() async {
     final controller = TextEditingController(
-      text: _state.customer == 'Khách hàng, phòng ban...'
+      text: _state.customer == 'Kh?ch h?ng, ph?ng ban...'
           ? ''
           : _state.customer,
     );
@@ -850,17 +1000,42 @@ class _SaleScreenState extends State<SaleScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Nhập tên khách hàng'),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+          contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          title: const Text(
+            'Nh?p t?n kh?ch h?ng',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
           content: TextField(
             controller: controller,
-            decoration: const InputDecoration(
-              hintText: 'Vi du: Ban so 5 / Anh Nam',
+            autofocus: true,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) {
+              _state.setCustomer(controller.text.trim());
+              Navigator.pop(context);
+            },
+            decoration: InputDecoration(
+              hintText: 'V? d?: B?n s? 5 / Anh Nam',
+              filled: true,
+              fillColor: const Color(0xFFF8FAFC),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Hủy'),
+              child: const Text('H?y'),
             ),
             FilledButton(
               onPressed: () {
@@ -870,7 +1045,7 @@ class _SaleScreenState extends State<SaleScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF1565FF),
               ),
-              child: const Text('Lưu'),
+              child: const Text('L?u'),
             ),
           ],
         );
@@ -898,7 +1073,7 @@ class _SaleScreenState extends State<SaleScreen> {
               TextField(
                 controller: priceController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Gia ban'),
+                decoration: const InputDecoration(labelText: 'Giá bán'),
               ),
             ],
           ),
@@ -913,7 +1088,7 @@ class _SaleScreenState extends State<SaleScreen> {
                 final price = int.tryParse(priceController.text.trim());
                 if (name.isEmpty || price == null || price < 0) {
                   ScaffoldMessenger.of(this.context).showSnackBar(
-                    const SnackBar(content: Text('Ten/gia khong hop le')),
+                    const SnackBar(content: Text('Tên/giá không hợp lệ')),
                   );
                   return;
                 }
@@ -1043,6 +1218,7 @@ class _SaleScreenState extends State<SaleScreen> {
                 id: p.id,
                 name: p.name,
                 price: p.price,
+                categoryName: p.categoryName,
                 selected: 0,
               ),
             )
@@ -1060,7 +1236,11 @@ class _SaleScreenState extends State<SaleScreen> {
       return;
     }
     try {
-      await _productRepository.createProduct(name: name, price: price);
+      await _productRepository.createProduct(
+        name: name,
+        price: price,
+        categoryName: 'Khác',
+      );
       await _loadQuickProducts();
     } catch (_) {
       // Keep local item if remote persist fails.
@@ -1073,7 +1253,7 @@ class _SaleScreenState extends State<SaleScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Xóa món nhanh'),
-          content: Text('B?n c? ch?c ch?n mu?n x?a "${product.name}"?'),
+          content: Text('Bạn có chắc chắn muốn xóa "${product.name}"?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -1136,7 +1316,7 @@ class _SaleScreenState extends State<SaleScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(errorMessage)));
-        if (errorMessage.toLowerCase().contains('quyen micro')) {
+        if (errorMessage.toLowerCase().contains('quyền micro')) {
           unawaited(_showMicPermissionHelpDialog());
         }
       },
@@ -1317,17 +1497,17 @@ class _SaleScreenState extends State<SaleScreen> {
   String _normalizeSpeechText(String value) {
     var text = value;
     const mappings = {
-      'mot': '1',
+      'một': '1',
       'hai': '2',
       'ba': '3',
-      'bon': '4',
-      'tu': '4',
-      'nam': '5',
-      'sau': '6',
-      'bay': '7',
-      'tam': '8',
-      'chin': '9',
-      'muoi': '10',
+      'bốn': '4',
+      'tư': '4',
+      'năm': '5',
+      'sáu': '6',
+      'bảy': '7',
+      'tám': '8',
+      'chín': '9',
+      'mười': '10',
     };
 
     mappings.forEach((word, number) {
@@ -1417,7 +1597,7 @@ class _SaleScreenState extends State<SaleScreen> {
                         onChanged: (_) => setLocalState(() {}),
                         decoration: const InputDecoration(
                           labelText: 'Đơn giá',
-                          hintText: 'VD: 25000 hoac 25k',
+                          hintText: 'VD: 25000 hoặc 25k',
                           prefixIcon: Icon(Icons.payments_outlined),
                         ),
                       ),
@@ -1594,7 +1774,7 @@ class _SaleScreenState extends State<SaleScreen> {
         return AlertDialog(
           title: const Text('Cần cấp quyền microphone'),
           content: const Text(
-            'Ứng dụng cần quyền micro để nhận dạng giọng nói. '
+            'ứng dụng cần quyền microphone để nhận dạng giọng nói. '
             'Bạn có muốn mở Cài đặt ứng dụng ngay bây giờ không?',
           ),
           actions: [
@@ -1783,38 +1963,48 @@ class _SaleGuide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.96, end: 1),
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-        builder: (context, value, child) {
-          return Opacity(
-            opacity: value.clamp(0, 1),
-            child: Transform.scale(scale: value, child: child),
-          );
-        },
-        child: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Đơn này bạn bán hàng gì?',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF212B36),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxHeight < 90) {
+          return const SizedBox.shrink();
+        }
+        return Center(
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.96, end: 1),
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic,
+            builder: (context, value, child) {
+              return Opacity(
+                opacity: value.clamp(0, 1),
+                child: Transform.scale(scale: value, child: child),
+              );
+            },
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Đơn này bạn bán hàng gì?',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF212B36),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Nhập tên hàng hoặc đọc tên hàng để thêm nhanh vào giỏ.',
+                    style: TextStyle(color: Color(0xFF6B7280)),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
-              textAlign: TextAlign.center,
             ),
-            SizedBox(height: 8),
-            Text(
-              'Nhập tên hàng hoặc đọc tên hàng để thêm nhanh vào giỏ.',
-              style: TextStyle(color: Color(0xFF6B7280)),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

@@ -6,6 +6,7 @@ import '../data/profile_store_repository.dart';
 import '../../../core/supabase/supabase_bootstrap.dart';
 import '../../../core/widgets/gradient_background.dart';
 import 'bank_account_list_screen.dart';
+import 'category_management_screen.dart';
 import 'employee_list_screen.dart';
 import 'profile_screen.dart';
 import 'speaker_settings_screen.dart';
@@ -87,6 +88,13 @@ class _MoreScreenState extends State<MoreScreen> {
                       icon: Icons.person_add_alt_1_outlined,
                       text: 'Quản lý nhân viên',
                       onTap: () => _openScreen(const EmployeeListScreen()),
+                    ),
+                    const _DividerLine(),
+                    _MenuRow(
+                      icon: Icons.category_outlined,
+                      text: 'Quản lý danh mục',
+                      onTap: () =>
+                          _openScreen(const CategoryManagementScreen()),
                     ),
                   ],
                 ),
@@ -213,7 +221,9 @@ class _MoreScreenState extends State<MoreScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không mở được ứng dụng gọi điện.')),
+        const SnackBar(
+          content: Text('Không mở được ứng dụng gọi điện.'),
+        ),
       );
     }
   }
@@ -294,7 +304,9 @@ class _ProfileHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  phone.isEmpty ? 'Chưa cập nhật số điện thoại' : phone,
+                  phone.isEmpty
+                      ? 'Chưa cập nhật số điện thoại'
+                      : phone,
                   style: const TextStyle(color: Color(0xFF64748B)),
                 ),
                 if (loading)

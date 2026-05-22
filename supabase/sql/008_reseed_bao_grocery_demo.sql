@@ -1,18 +1,18 @@
--- 008_reseed_bao_grocery_demo.sql
--- Resets app data in public schema and seeds a grocery / mini-mart demo
+﻿-- 008_reseed_bao_grocery_demo.sql
+-- Resets app data in public schema and seeds a restaurant food-and-drink demo
 -- for the auth user bao@gmail.com without deleting auth.users.
 --
 -- Demo shape:
 -- - 1 owner store
 -- - 3 demo employees
--- - 16 products with grocery-friendly pricing
+-- - 16 products with food-and-drink pricing
 -- - 3 bank accounts
 -- - 4 speaker templates
 -- - Orders spread from 2025-05-01 to current_date
 -- - Seasonal patterns:
 --   - Rainy season boosts noodles / hot drinks
---   - Back-to-school boosts snack / milk / stationery-like essentials
---   - Tet boosts gift basket / soft drinks / pantry staples
+--   - Back-to-school boosts affordable combo meals / drinks
+--   - Tet boosts family-size dishes / beverage orders
 --   - Weekend traffic is higher than weekdays
 --   - Last 3 days keep a few unpaid orders for demo variety
 
@@ -71,6 +71,7 @@ declare
 
   v_staff_ids uuid[];
   v_product_names text[];
+  v_product_categories text[];
   v_product_prices bigint[];
   v_customer_names text[];
   v_notes text[];
@@ -122,7 +123,7 @@ begin
   )
   values (
     v_owner_id,
-    'Tạp hóa Bảo Demo',
+    'Quán Ăn Bảo Demo',
     '0901234567',
     '28 Nguyễn Huệ, Quận 1, TP.HCM',
     '2025-05-01 08:30:00+00',
@@ -179,47 +180,67 @@ begin
     (v_store_id, v_emp_3, true, '2025-05-13 08:00:00+00');
 
   v_product_names := array[
-    'Mì gói Hảo Hảo',
-    'Nước suối 500ml',
-    'Cà phê sữa lon',
-    'Bánh tráng trộn hộp',
-    'Sữa tươi 1L',
-    'Trứng gà hộp 10',
-    'Bột giặt 800g',
-    'Nước ngậm có ga',
-    'Snack khoai tây',
-    'Khẩu trang hộp 10',
-    'Nước rửa chén 750ml',
-    'Trà đào chai',
-    'Cơm cháy chà bông',
-    'Cháo ăn liền',
-    'Bia lon 330ml',
-    'Giỏ quà mini'
+    'Cơm gà xối mỡ',
+    'Bún bò Huế',
+    'Phở bò tái',
+    'Mì xào bò',
+    'Bánh xèo',
+    'Gỏi cuốn tôm thịt',
+    'Chả giò',
+    'Lẩu Thái hải sản',
+    'Cơm tấm sườn nướng',
+    'Hủ tiếu Nam Vang',
+    'Trà đá',
+    'Trà tắc',
+    'Nước suối',
+    'Coca Cola',
+    'Pepsi',
+    'Cam ép'
   ];
 
   v_product_prices := array[
-    4500,
-    7000,
-    18000,
-    25000,
-    36000,
-    32000,
-    69000,
+    45000,
+    50000,
+    55000,
+    48000,
+    55000,
+    35000,
+    45000,
+    249000,
+    52000,
+    50000,
+    5000,
     12000,
+    10000,
     15000,
-    28000,
-    42000,
-    14000,
-    22000,
-    16000,
-    19000,
-    149000
+    15000,
+    25000
+  ];
+
+  v_product_categories := array[
+    'Món chính',
+    'Món chính',
+    'Món chính',
+    'Món chính',
+    'Món chính',
+    'Món phụ',
+    'Món phụ',
+    'Món chính',
+    'Món chính',
+    'Món chính',
+    'Đồ uống',
+    'Đồ uống',
+    'Đồ uống',
+    'Đồ uống',
+    'Đồ uống',
+    'Đồ uống'
   ];
 
   for v_product_index in 1..array_length(v_product_names, 1) loop
     insert into public.products (
       store_id,
       name,
+      category_name,
       price,
       is_active,
       created_at,
@@ -228,6 +249,7 @@ begin
     values (
       v_store_id,
       v_product_names[v_product_index],
+      v_product_categories[v_product_index],
       v_product_prices[v_product_index],
       true,
       '2025-05-01 09:00:00+00',
@@ -265,7 +287,7 @@ begin
     (
       v_store_id,
       'Chào khách vào cửa',
-      'Tạp hóa Bảo xin chào, hôm nay có nhiều món mới và ưu đãi cuối ngày.',
+      'Quán ăn Bảo xin chào, hôm nay có nhiều món mới và ưu đãi cuối ngày.',
       true,
       '2025-05-01 10:00:00+00',
       current_timestamp
@@ -281,7 +303,7 @@ begin
     (
       v_store_id,
       'Thông báo chuyển khoản',
-      'Đã nhận tiền chuyển khoản, Tạp hóa Bảo cảm ơn quý khách.',
+      'Đã nhận tiền chuyển khoản, Quán ăn Bảo cảm ơn quý khách.',
       false,
       '2025-12-01 10:00:00+00',
       current_timestamp
@@ -507,7 +529,7 @@ begin
   end loop;
 
   raise notice
-    'Grocery demo seeded for % | store=% | orders=% | paid=% | unpaid=% | from % to %',
+    'Restaurant demo seeded for % | store=% | orders=% | paid=% | unpaid=% | from % to %',
     v_owner_email,
     v_store_id,
     v_total_orders,
@@ -518,3 +540,5 @@ begin
 end $$;
 
 commit;
+
+

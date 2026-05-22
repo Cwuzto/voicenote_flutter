@@ -519,7 +519,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
       case DashboardRangeKey.sevenDays:
         return '7 ngày qua';
       case DashboardRangeKey.thisMonth:
-        return 'Tháng nay';
+        return 'Tháng này';
       case DashboardRangeKey.lastMonth:
         return 'Tháng trước';
       case DashboardRangeKey.thisYear:
@@ -861,6 +861,8 @@ class _MiniLineChart extends StatefulWidget {
 }
 
 class _MiniLineChartState extends State<_MiniLineChart> {
+  static const double _plotLeftPad = 14;
+  static const double _plotRightPad = 12;
   int? _selectedIndex;
 
   @override
@@ -895,6 +897,8 @@ class _MiniLineChartState extends State<_MiniLineChart> {
               painter: _MiniLineChartPainter(
                 data: widget.data,
                 selectedIndex: _selectedIndex,
+                leftPad: _plotLeftPad,
+                rightPad: _plotRightPad,
               ),
               child: const SizedBox.expand(),
             ),
@@ -911,13 +915,11 @@ class _MiniLineChartState extends State<_MiniLineChart> {
     if (points.isEmpty) return;
     final width = context.size?.width ?? 0;
     if (width <= 0) return;
-    const leftPad = 8.0;
-    const rightPad = 8.0;
-    final usableWidth = width - leftPad - rightPad;
+    final usableWidth = width - _plotLeftPad - _plotRightPad;
     if (usableWidth <= 0) return;
     final startX = widget.data.startX;
     final endX = widget.data.endX;
-    final x = (localX - leftPad).clamp(0.0, usableWidth);
+    final x = (localX - _plotLeftPad).clamp(0.0, usableWidth);
     final millis = startX + (x / usableWidth) * (endX - startX);
     var nearestIdx = 0;
     var nearestDistance = double.infinity;
@@ -968,22 +970,30 @@ class _ChartAxisLabels extends StatelessWidget {
 }
 
 class _MiniLineChartPainter extends CustomPainter {
-  _MiniLineChartPainter({required this.data, required this.selectedIndex});
+  _MiniLineChartPainter({
+    required this.data,
+    required this.selectedIndex,
+    required this.leftPad,
+    required this.rightPad,
+  });
 
   final _ChartRenderData data;
   final int? selectedIndex;
+  final double leftPad;
+  final double rightPad;
 
   @override
   void paint(Canvas canvas, Size size) {
     final points = data.points;
     if (points.isEmpty) return;
-    const leftPad = 8.0;
-    const rightPad = 8.0;
     const topPad = 10.0;
     const bottomPad = 20.0;
 
     final width = size.width - leftPad - rightPad;
     final height = size.height - topPad - bottomPad;
+    if (width <= 0 || height <= 0) return;
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, size.height));
     final xRange = (data.endX - data.startX).abs() < 1
         ? 1.0
         : data.endX - data.startX;
@@ -998,13 +1008,38 @@ class _MiniLineChartPainter extends CustomPainter {
     }
 
     final plotPoints = points.map(mapPoint).toList();
+    final chartRect = Rect.fromLTWH(leftPad, topPad, width, height);
+
+    Path buildSmoothPath(List<Offset> pts) {
+      if (pts.length < 2) {
+        return Path()..addOval(Rect.fromCircle(center: pts.first, radius: 1));
+      }
+      final path = Path()..moveTo(pts.first.dx, pts.first.dy);
+      for (int i = 0; i < pts.length - 1; i++) {
+        final p0 = i == 0 ? pts[i] : pts[i - 1];
+        final p1 = pts[i];
+        final p2 = pts[i + 1];
+        final p3 = i + 2 < pts.length ? pts[i + 2] : p2;
+        const t = 0.18; // lower tension to avoid overshoot
+        final cp1 = Offset(
+          p1.dx + (p2.dx - p0.dx) * t,
+          (p1.dy + (p2.dy - p0.dy) * t).clamp(topPad, topPad + height),
+        );
+        final cp2 = Offset(
+          p2.dx - (p3.dx - p1.dx) * t,
+          (p2.dy - (p3.dy - p1.dy) * t).clamp(topPad, topPad + height),
+        );
+        path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
+      }
+      return path;
+    }
 
     final gridPaint = Paint()
-      ..color = const Color(0xFFE2E8F0)
+      ..color = const Color(0xFFDEE7F3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
-    for (int i = 0; i < 3; i++) {
-      final y = topPad + (height * i / 2);
+    for (int i = 0; i < 4; i++) {
+      final y = topPad + (height * i / 3);
       canvas.drawLine(
         Offset(leftPad, y),
         Offset(size.width - rightPad, y),
@@ -1012,47 +1047,64 @@ class _MiniLineChartPainter extends CustomPainter {
       );
     }
 
-    if (plotPoints.length > 1) {
-      final smoothPath = Path()
-        ..moveTo(plotPoints.first.dx, plotPoints.first.dy);
-      for (int i = 1; i < plotPoints.length; i++) {
-        final prev = plotPoints[i - 1];
-        final cur = plotPoints[i];
-        final midX = (prev.dx + cur.dx) / 2;
-        smoothPath.cubicTo(midX, prev.dy, midX, cur.dy, cur.dx, cur.dy);
-      }
+    final smoothPath = buildSmoothPath(plotPoints);
+    final fillPath = Path.from(smoothPath)
+      ..lineTo(plotPoints.last.dx, topPad + height)
+      ..lineTo(plotPoints.first.dx, topPad + height)
+      ..close();
 
-      final fillPath = Path.from(smoothPath)
-        ..lineTo(plotPoints.last.dx, size.height - bottomPad)
-        ..lineTo(plotPoints.first.dx, size.height - bottomPad)
-        ..close();
+    final fillPaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0x591565FF), Color(0x051565FF)],
+      ).createShader(Rect.fromLTWH(leftPad, topPad, width, height))
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(fillPath, fillPaint);
 
-      final fillPaint = Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0x661565FF), Color(0x001565FF)],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
-        ..style = PaintingStyle.fill;
-      canvas.drawPath(fillPath, fillPaint);
+    final glowPaint = Paint()
+      ..color = const Color(0x4D1565FF)
+      ..strokeWidth = 6
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    canvas.drawPath(smoothPath, glowPaint);
 
-      final linePaint = Paint()
-        ..color = const Color(0xFF1565FF)
-        ..strokeWidth = 2.5
-        ..style = PaintingStyle.stroke;
-      canvas.drawPath(smoothPath, linePaint);
+    final linePaint = Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [Color(0xFF1D4ED8), Color(0xFF0EA5E9)],
+      ).createShader(chartRect)
+      ..strokeWidth = 2.6
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(smoothPath, linePaint);
+
+    if (selectedIndex != null &&
+        selectedIndex! >= 0 &&
+        selectedIndex! < plotPoints.length) {
+      final selected = plotPoints[selectedIndex!];
+      final guidePaint = Paint()
+        ..color = const Color(0x4D1565FF)
+        ..strokeWidth = 1.2;
+      canvas.drawLine(
+        Offset(selected.dx, topPad),
+        Offset(selected.dx, topPad + height),
+        guidePaint,
+      );
     }
 
-    final dotPaint = Paint()..color = const Color(0xFF1565FF);
+    final dotPaint = Paint()..color = const Color(0xFF1D4ED8);
     for (int i = 0; i < plotPoints.length; i++) {
       final p = plotPoints[i];
-      canvas.drawCircle(p, selectedIndex == i ? 4.8 : 3.2, dotPaint);
+      canvas.drawCircle(p, selectedIndex == i ? 5.2 : 3.4, dotPaint);
       if (selectedIndex == i) {
         final ring = Paint()
-          ..color = const Color(0x661565FF)
+          ..color = const Color(0x4D0EA5E9)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 5;
-        canvas.drawCircle(p, 8, ring);
+          ..strokeWidth = 6;
+        canvas.drawCircle(p, 9, ring);
       }
     }
 
@@ -1077,14 +1129,25 @@ class _MiniLineChartPainter extends CustomPainter {
           textDirection: TextDirection.ltr,
         )..layout();
         final p = plotPoints[i];
-        tp.paint(canvas, Offset(p.dx - tp.width / 2, p.dy - tp.height - 6));
+        final labelX = (p.dx - tp.width / 2).clamp(
+          leftPad,
+          size.width - rightPad - tp.width,
+        );
+        final labelY = (p.dy - tp.height - 6).clamp(
+          0.0,
+          size.height - tp.height,
+        );
+        tp.paint(canvas, Offset(labelX, labelY));
       }
     }
+    canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant _MiniLineChartPainter oldDelegate) {
     return oldDelegate.data != data ||
-        oldDelegate.selectedIndex != selectedIndex;
+        oldDelegate.selectedIndex != selectedIndex ||
+        oldDelegate.leftPad != leftPad ||
+        oldDelegate.rightPad != rightPad;
   }
 }

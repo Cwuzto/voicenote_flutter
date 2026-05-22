@@ -315,43 +315,80 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
           builder: (dialogContext, setDialogState) {
             return AlertDialog(
               scrollable: true,
-              title: Text(isEdit ? 'Sửa nhân viên' : 'Thêm nhân viên'),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              title: Text(isEdit ? 'S?a nh?n vi?n' : 'Th?m nh?n vi?n'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Họ tên'),
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: 'H? t?n',
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: emailController,
                     enabled: !isEdit,
-                    decoration: const InputDecoration(labelText: 'Email'),
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Text('Kích hoạt'),
-                      const Spacer(),
-                      Switch(
-                        value: isActive,
-                        onChanged: (value) {
-                          setDialogState(() {
-                            isActive = value;
-                          });
-                        },
-                      ),
-                    ],
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Text('K?ch ho?t'),
+                        const Spacer(),
+                        Switch(
+                          value: isActive,
+                          onChanged: (value) {
+                            setDialogState(() {
+                              isActive = value;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                   if (!isEdit)
                     const Align(
                       alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Lưu ý: Email phải tồn tại sẵn trong hệ thống.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF6B7280),
+                      child: Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'L?u ?: Email ph?i t?n t?i s?n trong h? th?ng.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF6B7280),
+                          ),
                         ),
                       ),
                     ),
@@ -360,7 +397,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Hủy'),
+                  child: const Text('H?y'),
                 ),
                 FilledButton(
                   onPressed: () {
@@ -369,7 +406,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                     if (name.isEmpty || email.isEmpty || !email.contains('@')) {
                       ScaffoldMessenger.of(dialogContext).showSnackBar(
                         const SnackBar(
-                          content: Text('Vui lòng nhập đầy đủ thông tin'),
+                          content: Text('Vui l?ng nh?p ??y ?? th?ng tin'),
                         ),
                       );
                       return;
@@ -386,7 +423,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF1565FF),
                   ),
-                  child: const Text('Lưu'),
+                  child: const Text('L?u'),
                 ),
               ],
             );

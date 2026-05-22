@@ -9,12 +9,14 @@ class SaleQuickProduct {
     required this.id,
     required this.name,
     required this.price,
+    required this.categoryName,
     required this.selected,
   });
 
   final String id;
   final String name;
   final int price;
+  final String categoryName;
   int selected;
 
   String get initial {
@@ -110,6 +112,7 @@ class SaleStateController extends ChangeNotifier {
         id: 'local_${DateTime.now().microsecondsSinceEpoch}',
         name: name,
         price: price,
+        categoryName: 'Khác',
         selected: 0,
       ),
     );

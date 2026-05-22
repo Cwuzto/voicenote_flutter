@@ -38,10 +38,20 @@ create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
   store_id uuid not null references public.stores(id),
   name text not null,
+  category_name text not null default 'Khác',
   price bigint not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.product_categories (
+  id uuid primary key default gen_random_uuid(),
+  store_id uuid not null references public.stores(id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (store_id, name)
 );
 
 create table if not exists public.orders (
@@ -89,6 +99,7 @@ create table if not exists public.speaker_templates (
 );
 
 create index if not exists idx_products_store_active on public.products(store_id, is_active);
+create index if not exists idx_product_categories_store_name on public.product_categories(store_id, name);
 create index if not exists idx_orders_store_created on public.orders(store_id, created_at desc);
 create index if not exists idx_orders_store_status_created on public.orders(store_id, status, created_at desc);
 create index if not exists idx_order_items_order_id on public.order_items(order_id);
@@ -114,6 +125,10 @@ for each row execute function public.set_updated_at();
 
 drop trigger if exists trg_products_updated_at on public.products;
 create trigger trg_products_updated_at before update on public.products
+for each row execute function public.set_updated_at();
+
+drop trigger if exists trg_product_categories_updated_at on public.product_categories;
+create trigger trg_product_categories_updated_at before update on public.product_categories
 for each row execute function public.set_updated_at();
 
 drop trigger if exists trg_orders_updated_at on public.orders;
