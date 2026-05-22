@@ -9,6 +9,7 @@ import '../../../core/supabase/store_scope_resolver.dart';
 import '../../../core/supabase/supabase_bootstrap.dart';
 import '../../../core/widgets/app_dialogs.dart';
 import '../../../core/widgets/gradient_background.dart';
+import '../../more/data/category_repository.dart';
 import '../data/product_repository.dart';
 
 class ProductListScreen extends StatefulWidget {
@@ -22,6 +23,7 @@ class ProductListScreen extends StatefulWidget {
 
 class _ProductListScreenState extends State<ProductListScreen> {
   final ProductRepository _repository = ProductRepository();
+  final CategoryRepository _categoryRepository = CategoryRepository();
   final List<ProductVm> _products = [];
   final TextEditingController _searchController = TextEditingController();
   final ValueNotifier<bool> _localNavVisible = ValueNotifier<bool>(true);
@@ -36,11 +38,14 @@ class _ProductListScreenState extends State<ProductListScreen> {
   List<ProductVm>? _lastFilteredProductsSource;
   String _lastProductsQuery = '';
   List<Object>? _cachedGroupedProducts;
+  final Set<String> _manualCategories = {'Món chính', 'Món phụ', 'Đồ uống'};
+  String _activeCategory = 'Tất cả';
 
   @override
   void initState() {
     super.initState();
     unawaited(_initRealtime());
+    unawaited(_loadCategories());
     unawaited(_loadProducts());
   }
 
@@ -136,6 +141,20 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          borderRadius: BorderRadius.circular(999),
+                          onTap: _openCreateCategoryDialog,
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFE5EAF2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.create_new_folder_outlined),
+                          ),
+                        ),
                         InkWell(
                           borderRadius: BorderRadius.circular(999),
                           onTap: () {
@@ -168,7 +187,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             controller: _searchController,
                             autofocus: true,
                             decoration: InputDecoration(
-                              hintText: 'Tìm sản phẩm',
+                              hintText: 'Tên sản phẩm',
                               filled: true,
                               fillColor: Colors.white,
                               contentPadding: const EdgeInsets.symmetric(
@@ -205,6 +224,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                   ),
                 ),
               ),
+              _buildCategoryBar(),
               Expanded(
                 child: ValueListenableBuilder<TextEditingValue>(
                   valueListenable: _searchController,
@@ -280,28 +300,38 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   List<Object> _groupedProducts(List<ProductVm> products) {
-    final sorted = [...products]
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-
     final items = <Object>[];
-    String? current;
-    for (final product in sorted) {
-      final letter = product.name.trim().isEmpty
-          ? '#'
-          : product.name.trim().characters.first.toUpperCase();
-      if (letter != current) {
-        current = letter;
-        items.add(_HeaderItem(letter));
+    final map = <String, List<ProductVm>>{};
+    for (final product in products) {
+      final category = _normalizedCategory(product.categoryName);
+      map.putIfAbsent(category, () => []).add(product);
+    }
+    final categories = map.keys.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    for (final category in categories) {
+      items.add(_HeaderItem(category));
+      final entries = map[category]!
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      for (final product in entries) {
+        items.add(_ProductItem(product));
       }
-      items.add(_ProductItem(product));
     }
     return items;
   }
 
   List<ProductVm> _filterProducts(List<ProductVm> products, String query) {
     final q = query.trim().toLowerCase();
-    if (q.isEmpty) return products;
-    return products.where((p) => p.name.toLowerCase().contains(q)).toList();
+    final source = _activeCategory == 'Tất cả'
+        ? products
+        : products
+              .where(
+                (p) =>
+                    _normalizedCategory(p.categoryName).toLowerCase() ==
+                    _activeCategory.toLowerCase(),
+              )
+              .toList();
+    if (q.isEmpty) return source;
+    return source.where((p) => p.name.toLowerCase().contains(q)).toList();
   }
 
   List<Object> _resolveGroupedProducts(String query) {
@@ -327,8 +357,111 @@ class _ProductListScreenState extends State<ProductListScreen> {
     _cachedGroupedProducts = null;
   }
 
+  Future<void> _loadCategories() async {
+    try {
+      final categories = await _categoryRepository.fetchCategories();
+      if (!mounted) return;
+      setState(() {
+        _manualCategories
+          ..clear()
+          ..addAll(categories.map((e) => e.name));
+      });
+    } catch (_) {
+      // Keep fallback categories in memory.
+    }
+  }
+
+  String _normalizedCategory(String? raw) {
+    final text = (raw ?? '').trim();
+    return text.isEmpty ? 'Khác' : text;
+  }
+
+  List<String> _allCategories() {
+    final categories = <String>{..._manualCategories};
+    for (final p in _products) {
+      categories.add(_normalizedCategory(p.categoryName));
+    }
+    final sorted = categories.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return ['Tất cả', ...sorted];
+  }
+
+  Widget _buildCategoryBar() {
+    final categories = _allCategories();
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        scrollDirection: Axis.horizontal,
+        itemCount: categories.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          final selected = category == _activeCategory;
+          return ChoiceChip(
+            label: Text(category),
+            selected: selected,
+            onSelected: (_) {
+              setState(() {
+                _activeCategory = category;
+                _invalidateProductGroupingCache();
+              });
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openCreateCategoryDialog() async {
+    final controller = TextEditingController();
+    final created = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tạo danh mục mới'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Ví dụ: Món nướng, Nước ép...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Tạo'),
+          ),
+        ],
+      ),
+    );
+    if (created == null || created.isEmpty) {
+      return;
+    }
+    try {
+      await _categoryRepository.createCategory(created);
+      await _loadCategories();
+      if (!mounted) return;
+      setState(() {
+        _activeCategory = created;
+        _invalidateProductGroupingCache();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
   Future<void> _openAddOrEditDialog({ProductVm? product}) async {
     final nameController = TextEditingController(text: product?.name ?? '');
+    final categoryController = TextEditingController(
+      text: _normalizedCategory(product?.categoryName),
+    );
     final priceController = TextEditingController(
       text: _formatVndRaw(product?.price ?? 0),
     );
@@ -403,7 +536,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm',
+                              isEdit
+                                  ? 'Sửa sản phẩm'
+                                  : 'Thêm sản phẩm',
                               style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
@@ -438,7 +573,40 @@ class _ProductListScreenState extends State<ProductListScreen> {
                     controller: nameController,
                     textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
-                      hintText: 'Ví dụ: Coca, Bún bò, Cà phê sữa...',
+                      hintText: 'Ví dụ: Coca, Bún bò, Cà phê...',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Danh mục',
+                    style: TextStyle(
+                      color: Color(0xFF475569),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue:
+                        _allCategories()
+                            .where((e) => e != 'Tất cả')
+                            .contains(categoryController.text)
+                        ? categoryController.text
+                        : null,
+                    items: _allCategories()
+                        .where((e) => e != 'Tất cả')
+                        .map(
+                          (category) => DropdownMenuItem<String>(
+                            value: category,
+                            child: Text(category),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      categoryController.text = value;
+                    },
+                    decoration: const InputDecoration(
+                      hintText: 'Chọn danh mục',
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -528,6 +696,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           onPressed: () async {
                             final name = nameController.text.trim();
                             final price = parsePrice();
+                            final category = _normalizedCategory(
+                              categoryController.text,
+                            );
 
                             if (name.isEmpty || price < 0) {
                               ScaffoldMessenger.of(this.context).showSnackBar(
@@ -548,7 +719,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             if (duplicated) {
                               ScaffoldMessenger.of(this.context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Tên sản phẩm này đã tồn tại'),
+                                  content: Text(
+                                    'Tên sản phẩm này đã tồn tại',
+                                  ),
                                 ),
                               );
                               return;
@@ -560,14 +733,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
                                   id: product.id,
                                   name: name,
                                   price: price,
+                                  categoryName: category,
                                 );
                               } else {
                                 await _repository.createProduct(
                                   name: name,
                                   price: price,
+                                  categoryName: category,
                                 );
                               }
 
+                              await _loadCategories();
                               await _loadProducts(force: true);
 
                               if (!mounted) {
@@ -725,6 +901,15 @@ class _ProductCard extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 16,
                           color: Color(0xFF1565FF),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        product.categoryName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF64748B),
                           fontWeight: FontWeight.w600,
                         ),
                       ),

@@ -6,7 +6,7 @@ A Flutter point-of-sale and voice-assisted order entry app.
 - UI/UX polish now includes Sale, Order Detail, Main Shell navigation, shared app backgrounds, and dialog/bottom-sheet consistency updates.
 - Recent progress also includes Orders sticky-header fixes, More-screen save UX improvements, and performance tuning across Sale, Orders, Dashboard, Product List, and Best Seller screens.
 - Supabase MCP connectivity has been verified for the current project.
-- Demo data now includes a grocery-style Vietnamese seed set for `bao@gmail.com`, with seasonal order history from `2025-05-01` to `2026-05-22`.
+- Demo data now includes a restaurant-style Vietnamese seed set for `bao@gmail.com`, with seasonal order history from `2025-05-01` to `2026-05-22`.
 - The orders repository has been updated to avoid `400 Bad Request` failures when loading large order histories.
 - Progress details are tracked in [PROGRESS.md](./PROGRESS.md).
 
@@ -27,3 +27,4 @@ Useful resources:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+

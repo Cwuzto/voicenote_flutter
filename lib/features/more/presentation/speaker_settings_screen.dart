@@ -65,14 +65,20 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
                     ),
                     Padding(
                       padding: const EdgeInsets.only(right: 12),
-                      child: FilledButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF1565FF),
-                        ),
-                        child: const Text(
-                          'Xong',
-                          style: TextStyle(fontWeight: FontWeight.w700),
+                      child: SizedBox(
+                        height: 40,
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF1565FF),
+                            minimumSize: const Size(0, 40),
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            'Xong',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
                         ),
                       ),
                     ),
@@ -376,6 +382,9 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
               },
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF1565FF),
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               child: const Text('Lưu'),
             ),

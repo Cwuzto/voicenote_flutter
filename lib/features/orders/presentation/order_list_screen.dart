@@ -54,8 +54,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
     if (SupabaseBootstrap.isInitialized) {
       unawaited(OrderStore.instance.startRealtime());
       unawaited(OrderStore.instance.loadOrders(force: true));
-    } else {
-      OrderStore.instance.ensureSeeded(_buildSeedOrders());
     }
     _storeListener = () {
       final lastAddedOrderId = OrderStore.instance.lastAddedOrderId;
@@ -88,77 +86,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
       }
     };
     OrderStore.instance.addListener(_storeListener);
-  }
-
-  List<OrderVm> _buildSeedOrders() {
-    final now = DateTime.now();
-    return [
-      OrderVm(
-        id: '1',
-        customerName: 'Khách lẻ',
-        sellerName: 'Long Hoang',
-        createdAt: now.subtract(const Duration(hours: 2)),
-        status: OrderStatusVm.unpaid,
-        lines: const [
-          OrderLineVm(
-            name: 'Kim chi',
-            quantity: 3,
-            unitPrice: 25000,
-            note: 'Không hành',
-          ),
-          OrderLineVm(name: 'Bun bo', quantity: 1, unitPrice: 50000),
-        ],
-      ),
-      OrderVm(
-        id: '2',
-        customerName: 'Ban so 5',
-        sellerName: 'Ngoc Anh',
-        paidByName: 'Ngoc Anh',
-        createdAt: now.subtract(const Duration(hours: 6)),
-        status: OrderStatusVm.paid,
-        lines: const [
-          OrderLineVm(name: 'Pho bo', quantity: 2, unitPrice: 45000),
-          OrderLineVm(
-            name: 'Tra dao',
-            quantity: 2,
-            unitPrice: 30000,
-            note: 'Ít đá',
-          ),
-          OrderLineVm(name: 'Ca phe sua', quantity: 1, unitPrice: 25000),
-        ],
-      ),
-      OrderVm(
-        id: '3',
-        customerName: 'Cong ty ABC',
-        sellerName: 'Long Hoang',
-        createdAt: now.subtract(const Duration(days: 1, hours: 3)),
-        status: OrderStatusVm.unpaid,
-        lines: const [
-          OrderLineVm(name: 'Com ga', quantity: 4, unitPrice: 55000),
-        ],
-      ),
-      OrderVm(
-        id: '4',
-        customerName: 'Anh Nam',
-        sellerName: 'Ngoc Anh',
-        paidByName: 'Ngoc Anh',
-        createdAt: now.subtract(const Duration(days: 4, hours: 1)),
-        status: OrderStatusVm.paid,
-        lines: const [
-          OrderLineVm(
-            name: 'Banh mi',
-            quantity: 5,
-            unitPrice: 18000,
-            note: 'Không ớt',
-          ),
-          OrderLineVm(name: 'Tra dao', quantity: 3, unitPrice: 30000),
-          OrderLineVm(name: 'Pho bo', quantity: 1, unitPrice: 45000),
-          OrderLineVm(name: 'Bun cha', quantity: 1, unitPrice: 50000),
-          OrderLineVm(name: 'Ca phe sua', quantity: 2, unitPrice: 25000),
-          OrderLineVm(name: 'Com ga', quantity: 1, unitPrice: 55000),
-        ],
-      ),
-    ];
   }
 
   @override
@@ -721,77 +648,58 @@ class _OrderListScreenState extends State<OrderListScreen> {
 
   String _dateHeader(BuildContext context, DateTime date) {
     final localizations = MaterialLocalizations.of(context);
-    final isVi = _isVietnameseLocale(context);
     final now = DateTime.now();
     if (date.year == now.year &&
         date.month == now.month &&
         date.day == now.day) {
-      final todayLabel = isVi ? 'Hôm nay' : 'Today';
+      const todayLabel = 'Hôm nay';
       return '$todayLabel, ${localizations.formatShortDate(date)}';
     }
-    final weekday = _weekdayLabel(date.weekday, isVi: isVi);
+    final weekday = _weekdayLabel(date.weekday);
     return '$weekday, ${localizations.formatShortDate(date)}';
   }
 
-  bool _isVietnameseLocale(BuildContext context) {
-    return Localizations.localeOf(context).languageCode.toLowerCase() == 'vi';
-  }
-
   String _timeFilterText(BuildContext context, OrderTimeFilter key) {
-    final isVi = _isVietnameseLocale(context);
     switch (key) {
       case OrderTimeFilter.today:
-        return isVi ? 'Hôm nay' : 'Today';
+        return 'Hôm nay';
       case OrderTimeFilter.yesterday:
-        return isVi ? 'Hôm qua' : 'Yesterday';
+        return 'Hôm qua';
       case OrderTimeFilter.last7Days:
-        return isVi ? '7 ngày qua' : 'Last 7 days';
+        return '7 ngày qua';
       case OrderTimeFilter.thisMonth:
-        return isVi ? 'Tháng này' : 'This month';
+        return 'Tháng nay';
       case OrderTimeFilter.lastMonth:
-        return isVi ? 'Tháng trước' : 'Last month';
+        return 'Tháng trước';
       case OrderTimeFilter.custom:
-        return isVi ? 'Tùy chỉnh' : 'Custom';
+        return 'Tùy chỉnh';
       case OrderTimeFilter.all:
-        return isVi ? 'Toàn thời gian' : 'All time';
+        return 'Tất cả thời gian';
     }
   }
 
   String _statusFilterText(BuildContext context, OrderStatusFilter key) {
-    final isVi = _isVietnameseLocale(context);
     switch (key) {
       case OrderStatusFilter.paid:
-        return isVi ? 'Đã nhận tiền' : 'Paid';
+        return 'Đã nhận tiền';
       case OrderStatusFilter.unpaid:
-        return isVi ? 'Chưa thanh toán' : 'Unpaid';
+        return 'Chưa thanh toán';
       case OrderStatusFilter.all:
-        return isVi ? 'Tất cả đơn' : 'All orders';
+        return 'Tất cả đơn';
     }
   }
 
-  static String _weekdayLabel(int weekday, {required bool isVi}) {
-    if (isVi) {
-      const weekdaysVi = [
-        'Thứ Hai',
-        'Thứ Ba',
-        'Thứ Tư',
-        'Thứ Năm',
-        'Thứ Sáu',
-        'Thứ Bảy',
-        'Chủ Nhật',
-      ];
-      return weekdaysVi[weekday - 1];
-    }
-    const weekdaysEn = [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
+  static String _weekdayLabel(int weekday) {
+    const weekdaysVi = [
+      'Thứ Hai',
+      'Thứ Ba',
+      'Thứ Tư',
+      'Thứ Năm',
+      'Thứ Sáu',
+      'Thứ Bảy',
+      'Chủ Nhật',
     ];
-    return weekdaysEn[weekday - 1];
+    return weekdaysVi[weekday - 1];
   }
 }
 
@@ -1024,7 +932,7 @@ class _OrderCard extends StatelessWidget {
                               'Nhận tiền: ${order.paidByName!}',
                               style: const TextStyle(
                                 fontSize: 13,
-                                color: Color(0xFF0F172A)
+                                color: Color(0xFF0F172A),
                               ),
                             ),
                         ],

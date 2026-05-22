@@ -12,6 +12,8 @@ class OrderRepository {
 
   Future<List<OrderVm>> fetchOrders() async {
     final storeId = await _resolveStoreId();
+    final now = DateTime.now();
+    final threeMonthsAgo = DateTime(now.year, now.month - 3, now.day);
 
     final ordersData = await _client
         .from('orders')
@@ -31,6 +33,7 @@ class OrderRepository {
           )
           ''')
         .eq('store_id', storeId)
+        .gte('created_at', threeMonthsAgo.toIso8601String())
         .order('created_at', ascending: false);
 
     final orders = List<Map<String, dynamic>>.from(ordersData);

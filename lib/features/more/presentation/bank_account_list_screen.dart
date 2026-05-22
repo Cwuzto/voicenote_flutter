@@ -324,27 +324,56 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
           builder: (dialogContext, setDialogState) {
             return AlertDialog(
               scrollable: true,
-              title: Text(isEdit ? 'Sửa tài khoản' : 'Thêm tài khoản'),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              title: Text(isEdit ? 'S?a t?i kho?n' : 'Th?m t?i kho?n'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: bankController,
-                    decoration: const InputDecoration(labelText: 'Ngân hàng'),
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: 'Ng?n h?ng',
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: numberController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Số tài khoản',
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(
+                      labelText: 'S? t?i kho?n',
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: holderController,
-                    decoration: const InputDecoration(
-                      labelText: 'Chủ tài khoản',
+                    textInputAction: TextInputAction.done,
+                    decoration: InputDecoration(
+                      labelText: 'Ch? t?i kho?n',
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
                   if (inlineError != null) ...[
@@ -366,7 +395,7 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Hủy'),
+                  child: const Text('H?y'),
                 ),
                 FilledButton(
                   onPressed: () {
@@ -375,7 +404,7 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
                     final holder = holderController.text.trim();
                     if (bankName.isEmpty || number.isEmpty || holder.isEmpty) {
                       setDialogState(() {
-                        inlineError = 'Vui lòng nhập đầy đủ thông tin.';
+                        inlineError = 'Vui l?ng nh?p ??y ?? th?ng tin.';
                       });
                       return;
                     }
@@ -391,7 +420,7 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF1565FF),
                   ),
-                  child: Text(isEdit ? 'Lưu' : 'Thêm'),
+                  child: Text(isEdit ? 'L?u' : 'Th?m'),
                 ),
               ],
             );
