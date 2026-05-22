@@ -35,6 +35,8 @@ class OrderVm {
     required this.id,
     required this.customerName,
     required this.sellerName,
+    this.paidByUserId,
+    this.paidByName,
     required this.createdAt,
     required this.status,
     required this.lines,
@@ -43,6 +45,8 @@ class OrderVm {
   final String id;
   String customerName;
   String sellerName;
+  String? paidByUserId;
+  String? paidByName;
   DateTime createdAt;
   OrderStatusVm status;
   List<OrderLineVm> lines;

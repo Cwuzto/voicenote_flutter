@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/gradient_background.dart';
 import '../data/profile_store_repository.dart';
 
 class StoreInfoScreen extends StatefulWidget {
@@ -14,10 +15,17 @@ class _StoreInfoScreenState extends State<StoreInfoScreen> {
   final _storeName = TextEditingController();
   final _address = TextEditingController();
 
-  String _ownerName = 'Chu cua hang';
+  String _ownerName = 'Chủ cửa hàng';
   bool _loading = true;
   bool _saving = false;
   String? _errorMessage;
+  String? _successMessage;
+  String _initialStoreName = '';
+  String _initialAddress = '';
+
+  bool get _hasChanges =>
+      _storeName.text.trim() != _initialStoreName ||
+      _address.text.trim() != _initialAddress;
 
   @override
   void initState() {
@@ -35,33 +43,50 @@ class _StoreInfoScreenState extends State<StoreInfoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFEFF6FF), Color(0xFFF8FAFC), Color(0xFFE0ECFF)],
-          ),
-        ),
+      body: GradientBackground(
         child: SafeArea(
           child: Column(
             children: [
               _TopBar(
-                title: 'Thong tin cua hang',
-                actionLabel: 'Luu',
+                title: 'Thông tin cửa hàng',
+                actionLabel: 'Lưu',
                 onBack: () => Navigator.pop(context),
-                onAction: _saving ? null : _saveStoreInfo,
+                onAction: !_saving && _hasChanges ? _saveStoreInfo : null,
                 loading: _saving,
               ),
+              if (_successMessage != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: _InlineStatusCard(
+                    message: _successMessage!,
+                    backgroundColor: const Color(0xFFE8FFF1),
+                    foregroundColor: const Color(0xFF166534),
+                    icon: Icons.check_circle_rounded,
+                  ),
+                ),
               if (_errorMessage != null)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: _InlineStatusCard(
+                    message: _errorMessage!,
+                    backgroundColor: const Color(0xFFFFECEC),
+                    foregroundColor: const Color(0xFFB91C1C),
+                    icon: Icons.error_outline_rounded,
+                  ),
+                ),
+              if (!_loading)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(
-                        color: Color(0xFFB91C1C),
+                      _hasChanges
+                          ? 'Bạn có thay đổi chưa lưu.'
+                          : 'Thông tin cửa hàng đang đồng bộ.',
+                      style: TextStyle(
+                        color: _hasChanges
+                            ? const Color(0xFFB45309)
+                            : const Color(0xFF64748B),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -76,11 +101,19 @@ class _StoreInfoScreenState extends State<StoreInfoScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _label('Ten cua hang'),
-                            _field(_storeName, hint: 'Vi du: Quan Bun Bo Hue'),
-                            _label('Dia chi', top: 12),
-                            _field(_address, hint: 'Chua cap nhat'),
-                            _label('Chu cua hang', top: 12),
+                            _label('Tên cửa hàng'),
+                            _field(
+                              _storeName,
+                              hint: 'Ví dụ: Quán Bún Bò Huế',
+                              onChanged: (_) => _handleDraftChanged(),
+                            ),
+                            _label('Địa chỉ', top: 12),
+                            _field(
+                              _address,
+                              hint: 'Chưa cập nhật',
+                              onChanged: (_) => _handleDraftChanged(),
+                            ),
+                            _label('Chủ cửa hàng', top: 12),
                             _readonlyBox(_ownerName),
                           ],
                         ),
@@ -106,6 +139,8 @@ class _StoreInfoScreenState extends State<StoreInfoScreen> {
       _storeName.text = data.storeName;
       _address.text = data.address;
       _ownerName = data.ownerName;
+      _initialStoreName = data.storeName.trim();
+      _initialAddress = data.address.trim();
     } catch (e) {
       if (!mounted) {
         return;
@@ -123,16 +158,22 @@ class _StoreInfoScreenState extends State<StoreInfoScreen> {
   }
 
   Future<void> _saveStoreInfo() async {
+    if (!_hasChanges || _saving) {
+      return;
+    }
     final name = _storeName.text.trim();
     if (name.isEmpty) {
       setState(() {
-        _errorMessage = 'Ten cua hang khong duoc de trong.';
+        _errorMessage = 'Tên cửa hàng không được để trống.';
+        _successMessage = null;
       });
       return;
     }
+    FocusScope.of(context).unfocus();
     setState(() {
       _saving = true;
       _errorMessage = null;
+      _successMessage = null;
     });
     try {
       await _repository.updateStoreInfo(
@@ -142,8 +183,13 @@ class _StoreInfoScreenState extends State<StoreInfoScreen> {
       if (!mounted) {
         return;
       }
+      _initialStoreName = _storeName.text.trim();
+      _initialAddress = _address.text.trim();
+      setState(() {
+        _successMessage = 'Đã lưu thông tin cửa hàng.';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Da luu thong tin cua hang.')),
+        const SnackBar(content: Text('Đã lưu thông tin cửa hàng.')),
       );
     } catch (e) {
       if (!mounted) {
@@ -161,6 +207,16 @@ class _StoreInfoScreenState extends State<StoreInfoScreen> {
     }
   }
 
+  void _handleDraftChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _successMessage = null;
+      _errorMessage = null;
+    });
+  }
+
   static Widget _label(String text, {double top = 0}) {
     return Padding(
       padding: EdgeInsets.only(top: top, bottom: 4),
@@ -168,9 +224,14 @@ class _StoreInfoScreenState extends State<StoreInfoScreen> {
     );
   }
 
-  static Widget _field(TextEditingController controller, {String? hint}) {
+  static Widget _field(
+    TextEditingController controller, {
+    String? hint,
+    ValueChanged<String>? onChanged,
+  }) {
     return TextField(
       controller: controller,
+      onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
         filled: true,
@@ -250,6 +311,48 @@ class _TopBar extends StatelessWidget {
                       actionLabel,
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineStatusCard extends StatelessWidget {
+  const _InlineStatusCard({
+    required this.message,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.icon,
+  });
+
+  final String message;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: foregroundColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: foregroundColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],

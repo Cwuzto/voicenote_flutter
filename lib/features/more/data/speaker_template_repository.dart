@@ -39,20 +39,20 @@ class SpeakerTemplateRepository {
   static final List<SpeakerTemplateVm> _localTemplates = [
     const SpeakerTemplateVm(
       id: 't1',
-      title: 'Mau 1',
-      content: 'Da nhan {so_tien} dong',
+      title: 'Mẫu 1',
+      content: 'Đã nhận {so_tien} đồng',
       isDefault: true,
     ),
     const SpeakerTemplateVm(
       id: 't2',
-      title: 'Mau 2',
-      content: 'Cam on quy khach, da nhan tien thanh cong',
+      title: 'Mẫu 2',
+      content: 'Cảm ơn quý khách, đã nhận tiền thành công',
       isDefault: false,
     ),
     const SpeakerTemplateVm(
       id: 't3',
-      title: 'Mau 3',
-      content: 'Tien vao roi nha minh oi',
+      title: 'Mẫu 3',
+      content: 'Tiền vào rồi nhà mình ơi',
       isDefault: false,
     ),
   ];
@@ -83,7 +83,7 @@ class SpeakerTemplateRepository {
   Future<SpeakerTemplateVm> createTemplate({required String content}) async {
     final normalizedContent = content.trim();
     if (normalizedContent.isEmpty) {
-      throw const SpeakerTemplateFlowException('Noi dung khong duoc de trong.');
+      throw const SpeakerTemplateFlowException('Nội dung không được để trống.');
     }
 
     if (!SupabaseBootstrap.isInitialized) {
@@ -123,13 +123,13 @@ class SpeakerTemplateRepository {
   }) async {
     final normalizedContent = content.trim();
     if (normalizedContent.isEmpty) {
-      throw const SpeakerTemplateFlowException('Noi dung khong duoc de trong.');
+      throw const SpeakerTemplateFlowException('Nội dung không được để trống.');
     }
 
     if (!SupabaseBootstrap.isInitialized) {
       final index = _localTemplates.indexWhere((e) => e.id == id);
       if (index < 0) {
-        throw const SpeakerTemplateFlowException('Khong tim thay mau cau.');
+        throw const SpeakerTemplateFlowException('Không tìm thấy mẫu câu.');
       }
       final updated = _localTemplates[index].copyWith(
         title: _deriveTitle(normalizedContent),
@@ -200,7 +200,7 @@ class SpeakerTemplateRepository {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
       throw const SpeakerTemplateFlowException(
-        'Phien dang nhap het han. Vui long dang nhap lai.',
+        'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
       );
     }
 
@@ -227,7 +227,7 @@ class SpeakerTemplateRepository {
     }
 
     throw const SpeakerTemplateFlowException(
-      'Chua tim thay cua hang cho tai khoan hien tai.',
+      'Chưa tìm thấy cửa hàng cho tài khoản hiện tại.',
     );
   }
 }

@@ -40,7 +40,7 @@ class SaleOrderLine {
 }
 
 class SaleStateController extends ChangeNotifier {
-  String _customer = 'Khach hang, phong ban...';
+  String _customer = 'Khách hàng, phòng ban...';
   bool _loadingProducts = false;
   SaleBottomPanelMode _panelMode = SaleBottomPanelMode.none;
 
@@ -64,7 +64,9 @@ class SaleStateController extends ChangeNotifier {
   }
 
   void setCustomer(String value) {
-    _customer = value.trim().isEmpty ? 'Khach hang, phong ban...' : value.trim();
+    _customer = value.trim().isEmpty
+        ? 'Khách hàng, phòng ban...'
+        : value.trim();
     notifyListeners();
   }
 
@@ -93,7 +95,7 @@ class SaleStateController extends ChangeNotifier {
     required String customerName,
     required List<SaleOrderLine> lines,
   }) {
-    _customer = customerName.trim().isEmpty ? 'Khach le' : customerName.trim();
+    _customer = customerName.trim().isEmpty ? 'Khách lẻ' : customerName.trim();
     _cart
       ..clear()
       ..addAll(lines);
@@ -132,7 +134,9 @@ class SaleStateController extends ChangeNotifier {
       final quick = _findQuickProduct(name, price);
       if (quick != null) quick.selected = _cart[index].quantity;
     } else {
-      _cart.add(SaleOrderLine(productName: name, unitPrice: price, quantity: qty));
+      _cart.add(
+        SaleOrderLine(productName: name, unitPrice: price, quantity: qty),
+      );
       final quick = _findQuickProduct(name, price);
       if (quick != null) quick.selected = qty;
     }
@@ -258,8 +262,8 @@ class SaleStateController extends ChangeNotifier {
   }
 
   String resolvedCustomerName() {
-    if (_customer == 'Khach hang, phong ban...' || _customer.trim().isEmpty) {
-      return 'Khach le';
+    if (_customer == 'Khách hàng, phòng ban...' || _customer.trim().isEmpty) {
+      return 'Khách lẻ';
     }
     return _customer.trim();
   }

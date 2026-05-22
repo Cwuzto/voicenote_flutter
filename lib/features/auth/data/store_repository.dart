@@ -12,7 +12,7 @@ class StoreRepository {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
       throw const StoreFlowException(
-        'Phien dang nhap da het han. Vui long dang nhap lai.',
+        'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
       );
     }
 

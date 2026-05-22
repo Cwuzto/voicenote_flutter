@@ -3,13 +3,23 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/supabase/supabase_bootstrap.dart';
+import '../../../core/widgets/app_dialogs.dart';
+import '../../../core/widgets/gradient_background.dart';
 import 'order_detail_screen.dart';
 import 'order_models.dart';
 import 'order_store.dart';
 
 enum OrderStatusFilter { all, paid, unpaid }
 
-enum OrderTimeFilter { all, today, yesterday, last7Days, thisMonth, lastMonth, custom }
+enum OrderTimeFilter {
+  all,
+  today,
+  yesterday,
+  last7Days,
+  thisMonth,
+  lastMonth,
+  custom,
+}
 
 class OrderListScreen extends StatefulWidget {
   const OrderListScreen({super.key});
@@ -28,6 +38,13 @@ class _OrderListScreenState extends State<OrderListScreen> {
   DateTimeRange? _customRange;
   String? _highlightOrderId;
   String? _handledLastAddedOrderId;
+  List<OrderVm>? _lastFilteredOrdersSource;
+  int _lastFilteredOrdersCount = -1;
+  String _lastFilterQuery = '';
+  OrderStatusFilter? _lastStatusFilter;
+  OrderTimeFilter? _lastTimeFilter;
+  DateTimeRange? _lastCustomRange;
+  _VisibleOrdersData? _cachedVisibleOrders;
 
   late final VoidCallback _storeListener;
 
@@ -66,6 +83,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
         });
       }
       if (mounted) {
+        _invalidateVisibleOrdersCache();
         setState(() {});
       }
     };
@@ -77,7 +95,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
     return [
       OrderVm(
         id: '1',
-        customerName: 'Khach le',
+        customerName: 'Khách lẻ',
         sellerName: 'Long Hoang',
         createdAt: now.subtract(const Duration(hours: 2)),
         status: OrderStatusVm.unpaid,
@@ -86,7 +104,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
             name: 'Kim chi',
             quantity: 3,
             unitPrice: 25000,
-            note: 'Khong hanh',
+            note: 'Không hành',
           ),
           OrderLineVm(name: 'Bun bo', quantity: 1, unitPrice: 50000),
         ],
@@ -95,6 +113,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
         id: '2',
         customerName: 'Ban so 5',
         sellerName: 'Ngoc Anh',
+        paidByName: 'Ngoc Anh',
         createdAt: now.subtract(const Duration(hours: 6)),
         status: OrderStatusVm.paid,
         lines: const [
@@ -103,7 +122,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
             name: 'Tra dao',
             quantity: 2,
             unitPrice: 30000,
-            note: 'It da',
+            note: 'Ít đá',
           ),
           OrderLineVm(name: 'Ca phe sua', quantity: 1, unitPrice: 25000),
         ],
@@ -122,6 +141,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
         id: '4',
         customerName: 'Anh Nam',
         sellerName: 'Ngoc Anh',
+        paidByName: 'Ngoc Anh',
         createdAt: now.subtract(const Duration(days: 4, hours: 1)),
         status: OrderStatusVm.paid,
         lines: const [
@@ -129,7 +149,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
             name: 'Banh mi',
             quantity: 5,
             unitPrice: 18000,
-            note: 'Khong ot',
+            note: 'Không ớt',
           ),
           OrderLineVm(name: 'Tra dao', quantity: 3, unitPrice: 30000),
           OrderLineVm(name: 'Pho bo', quantity: 1, unitPrice: 45000),
@@ -155,19 +175,9 @@ class _OrderListScreenState extends State<OrderListScreen> {
   @override
   Widget build(BuildContext context) {
     final store = OrderStore.instance;
-    final filtered = _applyFilters(store.orders);
-    final grouped = _groupByDate(filtered);
-    final loading = store.loading && grouped.isEmpty;
     final errorMessage = store.errorMessage;
 
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFEFF6FF), Color(0xFFF8FAFC), Color(0xFFE0ECFF)],
-        ),
-      ),
+    return GradientBackground(
       child: SafeArea(
         child: Column(
           children: [
@@ -196,28 +206,43 @@ class _OrderListScreenState extends State<OrderListScreen> {
                 ),
               ),
             Expanded(
-              child: RefreshIndicator(
-                onRefresh: () => OrderStore.instance.loadOrders(force: true),
-                child: loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : grouped.isEmpty
-                    ? ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(24),
-                        children: [
-                          _OrdersEmptyState(
-                            hasError:
-                                errorMessage != null && errorMessage.isNotEmpty,
-                            onRetry: () async {
-                              await OrderStore.instance.loadOrders(force: true);
-                            },
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _searchController,
+                builder: (context, value, _) {
+                  final visible = _resolveVisibleOrders(
+                    store.orders,
+                    value.text.trim().toLowerCase(),
+                  );
+                  final grouped = visible.groups;
+                  final loading = store.loading && grouped.isEmpty;
+                  return RefreshIndicator(
+                    onRefresh: () =>
+                        OrderStore.instance.loadOrders(force: true),
+                    child: loading
+                        ? const Center(child: CircularProgressIndicator())
+                        : grouped.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(24),
+                            children: [
+                              _OrdersEmptyState(
+                                hasError:
+                                    errorMessage != null &&
+                                    errorMessage.isNotEmpty,
+                                onRetry: () async {
+                                  await OrderStore.instance.loadOrders(
+                                    force: true,
+                                  );
+                                },
+                              ),
+                            ],
+                          )
+                        : CustomScrollView(
+                            controller: _scrollController,
+                            slivers: _buildStickyGroupedSlivers(grouped),
                           ),
-                        ],
-                      )
-                    : CustomScrollView(
-                        controller: _scrollController,
-                        slivers: _buildStickyGroupedSlivers(grouped),
-                      ),
+                  );
+                },
               ),
             ),
           ],
@@ -233,7 +258,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
         children: [
           const Expanded(
             child: Text(
-              'Hoa don',
+              'Hóa đơn',
               style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.w800,
@@ -246,6 +271,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
             onTap: () {
               setState(() {
                 _searchMode = true;
+                _invalidateVisibleOrdersCache();
               });
             },
             child: Container(
@@ -272,9 +298,8 @@ class _OrderListScreenState extends State<OrderListScreen> {
             child: TextField(
               controller: _searchController,
               autofocus: true,
-              onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                hintText: 'Tim theo hang hoa, khach hang',
+                hintText: 'Tìm theo hàng hóa, khách hàng',
                 filled: true,
                 fillColor: Colors.white,
                 contentPadding: const EdgeInsets.symmetric(
@@ -294,11 +319,12 @@ class _OrderListScreenState extends State<OrderListScreen> {
               setState(() {
                 _searchMode = false;
                 _searchController.clear();
+                _invalidateVisibleOrdersCache();
               });
               FocusScope.of(context).unfocus();
             },
             child: const Text(
-              'Huy',
+              'Hủy',
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF1565FF),
@@ -330,8 +356,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
   }
 
   List<OrderVm> _applyFilters(List<OrderVm> source) {
-    final query = _searchController.text.trim().toLowerCase();
-
     return source.where((order) {
       if (_statusFilter == OrderStatusFilter.paid &&
           order.status != OrderStatusVm.paid) {
@@ -344,14 +368,44 @@ class _OrderListScreenState extends State<OrderListScreen> {
 
       if (!_matchTime(order.createdAt)) return false;
 
-      if (query.isEmpty) return true;
+      if (_lastFilterQuery.isEmpty) return true;
 
-      final inCustomer = order.customerName.toLowerCase().contains(query);
+      final inCustomer = order.customerName.toLowerCase().contains(
+        _lastFilterQuery,
+      );
       final inItems = order.lines.any(
-        (line) => line.name.toLowerCase().contains(query),
+        (line) => line.name.toLowerCase().contains(_lastFilterQuery),
       );
       return inCustomer || inItems;
     }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  _VisibleOrdersData _resolveVisibleOrders(List<OrderVm> source, String query) {
+    final customRange = _customRange;
+    final canReuse =
+        identical(_lastFilteredOrdersSource, source) &&
+        _lastFilteredOrdersCount == source.length &&
+        _lastFilterQuery == query &&
+        _lastStatusFilter == _statusFilter &&
+        _lastTimeFilter == _timeFilter &&
+        _sameRange(_lastCustomRange, customRange) &&
+        _cachedVisibleOrders != null;
+    if (canReuse) {
+      return _cachedVisibleOrders!;
+    }
+
+    _lastFilteredOrdersSource = source;
+    _lastFilteredOrdersCount = source.length;
+    _lastFilterQuery = query;
+    _lastStatusFilter = _statusFilter;
+    _lastTimeFilter = _timeFilter;
+    _lastCustomRange = customRange;
+
+    final filtered = _applyFilters(source);
+    final grouped = _groupByDate(filtered);
+    final visible = _VisibleOrdersData(filtered: filtered, groups: grouped);
+    _cachedVisibleOrders = visible;
+    return visible;
   }
 
   bool _matchTime(DateTime value) {
@@ -402,6 +456,18 @@ class _OrderListScreenState extends State<OrderListScreen> {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
+  bool _sameRange(DateTimeRange? a, DateTimeRange? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return a == b;
+    return a.start == b.start && a.end == b.end;
+  }
+
+  void _invalidateVisibleOrdersCache() {
+    _lastFilteredOrdersSource = null;
+    _lastFilteredOrdersCount = -1;
+    _cachedVisibleOrders = null;
+  }
+
   List<_DateGroup> _groupByDate(List<OrderVm> list) {
     final map = <String, List<OrderVm>>{};
     final dateMap = <String, DateTime>{};
@@ -434,137 +500,136 @@ class _OrderListScreenState extends State<OrderListScreen> {
     ];
     for (final group in groups) {
       slivers.add(
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: _StickyDateHeaderDelegate(
-            group: group,
-            dateLabelBuilder: _dateHeader,
-          ),
-        ),
-      );
-      slivers.add(
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final order = group.orders[index];
-              return _OrderCard(
-                order: order,
-                highlight: _highlightOrderId == order.id,
-                onPaidTap: (value) => _confirmPaid(value),
-                onTap: (value) async {
-                  await Navigator.push<void>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => OrderDetailScreen(order: value),
-                    ),
+        SliverMainAxisGroup(
+          slivers: [
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _StickyDateHeaderDelegate(
+                group: group,
+                dateLabelBuilder: _dateHeader,
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final order = group.orders[index];
+                  return _OrderCard(
+                    order: order,
+                    highlight: _highlightOrderId == order.id,
+                    onPaidTap: (value) => _confirmPaid(value),
+                    onTap: (value) async {
+                      await Navigator.push<void>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => OrderDetailScreen(order: value),
+                        ),
+                      );
+                      if (!context.mounted) {
+                        return;
+                      }
+                      if (SupabaseBootstrap.isInitialized) {
+                        await OrderStore.instance.loadOrders(force: true);
+                      } else {
+                        OrderStore.instance.notifyChanged();
+                      }
+                    },
                   );
-                  if (!context.mounted) {
-                    return;
-                  }
-                  if (SupabaseBootstrap.isInitialized) {
-                    await OrderStore.instance.loadOrders(force: true);
-                  } else {
-                    OrderStore.instance.notifyChanged();
-                  }
-                },
-              );
-            }, childCount: group.orders.length),
-          ),
+                }, childCount: group.orders.length),
+              ),
+            ),
+          ],
         ),
       );
     }
     slivers.add(const SliverPadding(padding: EdgeInsets.only(bottom: 16)));
     return slivers;
   }
+
   Future<void> _pickStatusFilter() async {
-    final result = await showModalBottomSheet<OrderStatusFilter>(
+    final result = await showAppOptionSheet<OrderStatusFilter>(
       context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _SheetTile(
-                label: _statusFilterText(context, OrderStatusFilter.all),
-                selected: _statusFilter == OrderStatusFilter.all,
-                onTap: () => Navigator.pop(context, OrderStatusFilter.all),
-              ),
-              _SheetTile(
-                label: _statusFilterText(context, OrderStatusFilter.paid),
-                selected: _statusFilter == OrderStatusFilter.paid,
-                onTap: () => Navigator.pop(context, OrderStatusFilter.paid),
-              ),
-              _SheetTile(
-                label: _statusFilterText(context, OrderStatusFilter.unpaid),
-                selected: _statusFilter == OrderStatusFilter.unpaid,
-                onTap: () => Navigator.pop(context, OrderStatusFilter.unpaid),
-              ),
-            ],
-          ),
-        );
-      },
+      title: 'Lọc theo trạng thái',
+      actions: [
+        AppSheetAction(
+          label: _statusFilterText(context, OrderStatusFilter.all),
+          value: OrderStatusFilter.all,
+          selected: _statusFilter == OrderStatusFilter.all,
+          icon: Icons.layers_clear_rounded,
+        ),
+        AppSheetAction(
+          label: _statusFilterText(context, OrderStatusFilter.paid),
+          value: OrderStatusFilter.paid,
+          selected: _statusFilter == OrderStatusFilter.paid,
+          icon: Icons.check_circle_outline_rounded,
+        ),
+        AppSheetAction(
+          label: _statusFilterText(context, OrderStatusFilter.unpaid),
+          value: OrderStatusFilter.unpaid,
+          selected: _statusFilter == OrderStatusFilter.unpaid,
+          icon: Icons.pending_actions_rounded,
+        ),
+      ],
     );
 
     if (result != null) {
       setState(() {
         _statusFilter = result;
+        _invalidateVisibleOrdersCache();
       });
     }
   }
 
   Future<void> _pickTimeFilter() async {
-    final result = await showModalBottomSheet<OrderTimeFilter>(
+    final result = await showAppOptionSheet<OrderTimeFilter>(
       context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _SheetTile(
-                label: _timeFilterText(context, OrderTimeFilter.all),
-                selected:
-                    _timeFilter == OrderTimeFilter.all && _customRange == null,
-                onTap: () => Navigator.pop(context, OrderTimeFilter.all),
-              ),
-              _SheetTile(
-                label: _timeFilterText(context, OrderTimeFilter.today),
-                selected: _timeFilter == OrderTimeFilter.today,
-                onTap: () => Navigator.pop(context, OrderTimeFilter.today),
-              ),
-              _SheetTile(
-                label: _timeFilterText(context, OrderTimeFilter.yesterday),
-                selected: _timeFilter == OrderTimeFilter.yesterday,
-                onTap: () => Navigator.pop(context, OrderTimeFilter.yesterday),
-              ),
-              _SheetTile(
-                label: _timeFilterText(context, OrderTimeFilter.last7Days),
-                selected: _timeFilter == OrderTimeFilter.last7Days,
-                onTap: () => Navigator.pop(context, OrderTimeFilter.last7Days),
-              ),
-              _SheetTile(
-                label: _timeFilterText(context, OrderTimeFilter.thisMonth),
-                selected: _timeFilter == OrderTimeFilter.thisMonth,
-                onTap: () => Navigator.pop(context, OrderTimeFilter.thisMonth),
-              ),
-              _SheetTile(
-                label: _timeFilterText(context, OrderTimeFilter.lastMonth),
-                selected: _timeFilter == OrderTimeFilter.lastMonth,
-                onTap: () => Navigator.pop(context, OrderTimeFilter.lastMonth),
-              ),
-              _SheetTile(
-                label: _timeFilterText(context, OrderTimeFilter.custom),
-                selected:
-                    _timeFilter == OrderTimeFilter.custom &&
-                    _customRange != null,
-                onTap: () => Navigator.pop(context, OrderTimeFilter.custom),
-              ),
-            ],
-          ),
-        );
-      },
+      title: 'Lọc theo thời gian',
+      description: 'Chọn một khoảng để lọc danh sách hóa đơn.',
+      actions: [
+        AppSheetAction(
+          label: _timeFilterText(context, OrderTimeFilter.all),
+          value: OrderTimeFilter.all,
+          selected: _timeFilter == OrderTimeFilter.all && _customRange == null,
+          icon: Icons.all_inclusive_rounded,
+        ),
+        AppSheetAction(
+          label: _timeFilterText(context, OrderTimeFilter.today),
+          value: OrderTimeFilter.today,
+          selected: _timeFilter == OrderTimeFilter.today,
+          icon: Icons.today_rounded,
+        ),
+        AppSheetAction(
+          label: _timeFilterText(context, OrderTimeFilter.yesterday),
+          value: OrderTimeFilter.yesterday,
+          selected: _timeFilter == OrderTimeFilter.yesterday,
+          icon: Icons.history_toggle_off_rounded,
+        ),
+        AppSheetAction(
+          label: _timeFilterText(context, OrderTimeFilter.last7Days),
+          value: OrderTimeFilter.last7Days,
+          selected: _timeFilter == OrderTimeFilter.last7Days,
+          icon: Icons.date_range_rounded,
+        ),
+        AppSheetAction(
+          label: _timeFilterText(context, OrderTimeFilter.thisMonth),
+          value: OrderTimeFilter.thisMonth,
+          selected: _timeFilter == OrderTimeFilter.thisMonth,
+          icon: Icons.calendar_month_rounded,
+        ),
+        AppSheetAction(
+          label: _timeFilterText(context, OrderTimeFilter.lastMonth),
+          value: OrderTimeFilter.lastMonth,
+          selected: _timeFilter == OrderTimeFilter.lastMonth,
+          icon: Icons.event_repeat_rounded,
+        ),
+        AppSheetAction(
+          label: _timeFilterText(context, OrderTimeFilter.custom),
+          value: OrderTimeFilter.custom,
+          selected:
+              _timeFilter == OrderTimeFilter.custom && _customRange != null,
+          icon: Icons.tune_rounded,
+        ),
+      ],
     );
 
     if (!mounted) {
@@ -585,6 +650,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
         setState(() {
           _customRange = range;
           _timeFilter = OrderTimeFilter.custom;
+          _invalidateVisibleOrdersCache();
         });
       }
       return;
@@ -593,6 +659,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
     setState(() {
       _customRange = null;
       _timeFilter = result;
+      _invalidateVisibleOrdersCache();
     });
   }
 
@@ -611,29 +678,12 @@ class _OrderListScreenState extends State<OrderListScreen> {
   Future<void> _confirmPaid(OrderVm order) async {
     if (order.status == OrderStatusVm.paid) return;
 
-    final ok = await showDialog<bool>(
+    final ok = await showAppConfirmDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Xac nhan thanh toan'),
-          content: const Text(
-            'Ban co chac chan muon danh dau don nay la DA NHAN TIEN?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Huy'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF1565FF),
-              ),
-              child: const Text('Xac nhan'),
-            ),
-          ],
-        );
-      },
+      title: 'Xác nhận thanh toán',
+      message: 'Bạn có chắc chắn muốn đánh dấu đơn này là đã nhận tiền?',
+      confirmLabel: 'Xác nhận',
+      icon: Icons.payments_outlined,
     );
 
     if (ok == true) {
@@ -676,7 +726,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
     if (date.year == now.year &&
         date.month == now.month &&
         date.day == now.day) {
-      final todayLabel = isVi ? 'Hom nay' : 'Today';
+      final todayLabel = isVi ? 'Hôm nay' : 'Today';
       return '$todayLabel, ${localizations.formatShortDate(date)}';
     }
     final weekday = _weekdayLabel(date.weekday, isVi: isVi);
@@ -691,19 +741,19 @@ class _OrderListScreenState extends State<OrderListScreen> {
     final isVi = _isVietnameseLocale(context);
     switch (key) {
       case OrderTimeFilter.today:
-        return isVi ? 'Hom nay' : 'Today';
+        return isVi ? 'Hôm nay' : 'Today';
       case OrderTimeFilter.yesterday:
-        return isVi ? 'Hom qua' : 'Yesterday';
+        return isVi ? 'Hôm qua' : 'Yesterday';
       case OrderTimeFilter.last7Days:
-        return isVi ? '7 ngay qua' : 'Last 7 days';
+        return isVi ? '7 ngày qua' : 'Last 7 days';
       case OrderTimeFilter.thisMonth:
-        return isVi ? 'Thang nay' : 'This month';
+        return isVi ? 'Tháng này' : 'This month';
       case OrderTimeFilter.lastMonth:
-        return isVi ? 'Thang truoc' : 'Last month';
+        return isVi ? 'Tháng trước' : 'Last month';
       case OrderTimeFilter.custom:
-        return isVi ? 'Tuy chinh' : 'Custom';
+        return isVi ? 'Tùy chỉnh' : 'Custom';
       case OrderTimeFilter.all:
-        return isVi ? 'Toan thoi gian' : 'All time';
+        return isVi ? 'Toàn thời gian' : 'All time';
     }
   }
 
@@ -711,24 +761,24 @@ class _OrderListScreenState extends State<OrderListScreen> {
     final isVi = _isVietnameseLocale(context);
     switch (key) {
       case OrderStatusFilter.paid:
-        return isVi ? 'Da nhan tien' : 'Paid';
+        return isVi ? 'Đã nhận tiền' : 'Paid';
       case OrderStatusFilter.unpaid:
-        return isVi ? 'Chua thanh toan' : 'Unpaid';
+        return isVi ? 'Chưa thanh toán' : 'Unpaid';
       case OrderStatusFilter.all:
-        return isVi ? 'Tat ca don' : 'All orders';
+        return isVi ? 'Tất cả đơn' : 'All orders';
     }
   }
 
   static String _weekdayLabel(int weekday, {required bool isVi}) {
     if (isVi) {
       const weekdaysVi = [
-        'Thu Hai',
-        'Thu Ba',
-        'Thu Tu',
-        'Thu Nam',
-        'Thu Sau',
-        'Thu Bay',
-        'Chu Nhat',
+        'Thứ Hai',
+        'Thứ Ba',
+        'Thứ Tư',
+        'Thứ Năm',
+        'Thứ Sáu',
+        'Thứ Bảy',
+        'Chủ Nhật',
       ];
       return weekdaysVi[weekday - 1];
     }
@@ -782,35 +832,6 @@ class _FilterChipButton extends StatelessWidget {
   }
 }
 
-class _SheetTile extends StatelessWidget {
-  const _SheetTile({
-    required this.label,
-    required this.onTap,
-    this.selected = false,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      title: Text(
-        label,
-        style: TextStyle(
-          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          color: selected ? const Color(0xFF1565FF) : const Color(0xFF111827),
-        ),
-      ),
-      trailing: selected
-          ? const Icon(Icons.check_rounded, color: Color(0xFF1565FF))
-          : null,
-      onTap: onTap,
-    );
-  }
-}
-
 class _OrdersEmptyState extends StatelessWidget {
   const _OrdersEmptyState({required this.hasError, required this.onRetry});
 
@@ -830,8 +851,8 @@ class _OrdersEmptyState extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             hasError
-                ? 'Chua tai duoc danh sach hoa don.'
-                : 'Danh sach don hang dang trong.\nBam Ban hang de tao don.',
+                ? 'Chưa tải được danh sách hóa đơn.'
+                : 'Danh sách đơn hàng đang trống.\nBấm Bán hàng để tạo đơn.',
             textAlign: TextAlign.center,
             style: const TextStyle(color: Color(0xFF6B7280)),
           ),
@@ -840,7 +861,7 @@ class _OrdersEmptyState extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Thu tai lai'),
+              label: const Text('Thử tải lại'),
             ),
           ],
         ],
@@ -859,6 +880,13 @@ class _DateGroup {
   final DateTime date;
   final List<OrderVm> orders;
   final int dayTotal;
+}
+
+class _VisibleOrdersData {
+  const _VisibleOrdersData({required this.filtered, required this.groups});
+
+  final List<OrderVm> filtered;
+  final List<_DateGroup> groups;
 }
 
 class _StickyDateHeaderDelegate extends SliverPersistentHeaderDelegate {
@@ -883,8 +911,20 @@ class _StickyDateHeaderDelegate extends SliverPersistentHeaderDelegate {
     bool overlapsContent,
   ) {
     return SizedBox.expand(
-      child: ColoredBox(
-        color: const Color(0xFFF8FAFC),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          border: const Border(bottom: BorderSide(color: Color(0xFFE2E8F0))),
+          boxShadow: overlapsContent
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Row(
@@ -972,12 +1012,21 @@ class _OrderCard extends StatelessWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Nhan vien: ${order.sellerName}',
+                            'Nhân viên: ${order.sellerName}',
                             style: const TextStyle(
                               fontSize: 14,
                               color: Color(0xFF64748B),
                             ),
                           ),
+                          if (order.paidByName != null &&
+                              order.paidByName!.trim().isNotEmpty)
+                            Text(
+                              'Nhận tiền: ${order.paidByName!}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF0F172A)
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -1061,7 +1110,7 @@ class _OrderCard extends StatelessWidget {
                                   : (_) => onPaidTap(order),
                             ),
                             const Text(
-                              'Da nhan tien',
+                              'Đã nhận tiền',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: Color(0xFF0F172A),
@@ -1082,7 +1131,7 @@ class _OrderCard extends StatelessWidget {
   }
 
   static String _buildLinesSummary(List<OrderLineVm> lines) {
-    if (lines.isEmpty) return 'Don hang trong';
+    if (lines.isEmpty) return 'Đơn hàng trống';
 
     final maxLines = 5;
     final buffer = StringBuffer();
@@ -1096,7 +1145,7 @@ class _OrderCard extends StatelessWidget {
       } else if (i == maxLines) {
         final remain = lines.length - maxLines;
         if (remain > 0) {
-          buffer.write(' + $remain hang khac');
+          buffer.write(' + $remain hàng khác');
         }
       }
     }
@@ -1111,4 +1160,3 @@ class _OrderCard extends StatelessWidget {
     return notes.join('\n');
   }
 }
-

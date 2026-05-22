@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_dialogs.dart';
+import '../../../core/widgets/gradient_background.dart';
 import '../data/bank_account_repository.dart';
 
 class BankAccountListScreen extends StatefulWidget {
@@ -28,24 +30,18 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton(
         onPressed: _addAccount,
         backgroundColor: const Color(0xFF1565FF),
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFEFF6FF), Color(0xFFF8FAFC), Color(0xFFE0ECFF)],
-          ),
-        ),
+      body: GradientBackground(
         child: SafeArea(
           child: Column(
             children: [
               _Header(
-                title: 'Tai khoan ngan hang',
+                title: 'Tài khoản ngân hàng',
                 onBack: () => Navigator.pop(context),
               ),
               if (_errorMessage != null)
@@ -78,7 +74,7 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
     if (_accounts.isEmpty) {
       return const Center(
         child: Text(
-          'Chua co tai khoan ngan hang',
+          'Chưa có tài khoản ngân hàng',
           style: TextStyle(color: Color(0xFF6B7280)),
         ),
       );
@@ -126,7 +122,7 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: const Text(
-                          'Mac dinh',
+                          'Mặc định',
                           style: TextStyle(color: Colors.white, fontSize: 12),
                         ),
                       ),
@@ -206,7 +202,7 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
         _accounts.insert(0, created);
         _defaultAccountId ??= created.id;
       });
-      _showMessage('Da them');
+      _showMessage('Đã thêm');
     } catch (e) {
       _showMessage(e.toString());
     }
@@ -234,38 +230,35 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
           _accounts[index] = updated;
         }
       });
-      _showMessage('Da cap nhat');
+      _showMessage('Đã cập nhật');
     } catch (e) {
       _showMessage(e.toString());
     }
   }
 
   Future<void> _showAccountActions(BankAccountVm account) async {
-    final action = await showModalBottomSheet<String>(
+    final action = await showAppOptionSheet<String>(
       context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text('Sua tai khoan'),
-                onTap: () => Navigator.pop(context, 'edit'),
-              ),
-              ListTile(
-                title: const Text('Dat mac dinh'),
-                onTap: () => Navigator.pop(context, 'default'),
-              ),
-              ListTile(
-                title: const Text('Xoa tai khoan'),
-                textColor: const Color(0xFFDC2626),
-                onTap: () => Navigator.pop(context, 'delete'),
-              ),
-            ],
-          ),
-        );
-      },
+      title: account.bankName,
+      description: account.number,
+      actions: const [
+        AppSheetAction(
+          label: 'Sửa tài khoản',
+          value: 'edit',
+          icon: Icons.edit_outlined,
+        ),
+        AppSheetAction(
+          label: 'Đặt mặc định',
+          value: 'default',
+          icon: Icons.star_outline_rounded,
+        ),
+        AppSheetAction(
+          label: 'Xóa tài khoản',
+          value: 'delete',
+          icon: Icons.delete_outline_rounded,
+          destructive: true,
+        ),
+      ],
     );
 
     if (!mounted || action == null) {
@@ -298,36 +291,21 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
           _defaultAccountId = _accounts.isEmpty ? null : _accounts.first.id;
         }
       });
-      _showMessage('Da xoa');
+      _showMessage('Đã xóa');
     } catch (e) {
       _showMessage(e.toString());
     }
   }
 
   Future<bool> _confirmDelete(String bankName) async {
-    final result = await showDialog<bool>(
+    final result = await showAppConfirmDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Xoa tai khoan'),
-          content: Text('Ban co chac muon xoa "$bankName"?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Huy'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFDC2626),
-              ),
-              child: const Text('Xoa'),
-            ),
-          ],
-        );
-      },
+      title: 'Xóa tài khoản',
+      message: 'Bạn có chắc muốn xóa "$bankName"?',
+      confirmLabel: 'Xóa',
+      destructive: true,
     );
-    return result == true;
+    return result;
   }
 
   Future<_BankAccountFormPayload?> _showAddEditDialog({
@@ -337,64 +315,87 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
     final numberController = TextEditingController(text: account?.number ?? '');
     final holderController = TextEditingController(text: account?.holder ?? '');
     final isEdit = account != null;
+    String? inlineError;
 
     final payload = await showDialog<_BankAccountFormPayload>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(isEdit ? 'Sua tai khoan' : 'Them tai khoan'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: bankController,
-                decoration: const InputDecoration(labelText: 'Ngan hang'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: numberController,
-                decoration: const InputDecoration(labelText: 'So tai khoan'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: holderController,
-                decoration: const InputDecoration(labelText: 'Chu tai khoan'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Huy'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final bankName = bankController.text.trim();
-                final number = numberController.text.trim();
-                final holder = holderController.text.trim();
-                if (bankName.isEmpty || number.isEmpty || holder.isEmpty) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    const SnackBar(
-                      content: Text('Vui long nhap day du thong tin'),
-                    ),
-                  );
-                  return;
-                }
-                Navigator.pop(
-                  dialogContext,
-                  _BankAccountFormPayload(
-                    bankName: bankName,
-                    number: number,
-                    holder: holder,
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              scrollable: true,
+              title: Text(isEdit ? 'Sửa tài khoản' : 'Thêm tài khoản'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: bankController,
+                    decoration: const InputDecoration(labelText: 'Ngân hàng'),
                   ),
-                );
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF1565FF),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: numberController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Số tài khoản',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: holderController,
+                    decoration: const InputDecoration(
+                      labelText: 'Chủ tài khoản',
+                    ),
+                  ),
+                  if (inlineError != null) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        inlineError!,
+                        style: const TextStyle(
+                          color: Color(0xFFB91C1C),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              child: Text(isEdit ? 'Luu' : 'Them'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Hủy'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final bankName = bankController.text.trim();
+                    final number = numberController.text.trim();
+                    final holder = holderController.text.trim();
+                    if (bankName.isEmpty || number.isEmpty || holder.isEmpty) {
+                      setDialogState(() {
+                        inlineError = 'Vui lòng nhập đầy đủ thông tin.';
+                      });
+                      return;
+                    }
+                    Navigator.pop(
+                      dialogContext,
+                      _BankAccountFormPayload(
+                        bankName: bankName,
+                        number: number,
+                        holder: holder,
+                      ),
+                    );
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF1565FF),
+                  ),
+                  child: Text(isEdit ? 'Lưu' : 'Thêm'),
+                ),
+              ],
+            );
+          },
         );
       },
     );

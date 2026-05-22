@@ -116,7 +116,7 @@ class BankAccountRepository {
     if (!SupabaseBootstrap.isInitialized) {
       final index = _localAccounts.indexWhere((e) => e.id == id);
       if (index < 0) {
-        throw const BankAccountFlowException('Khong tim thay tai khoan.');
+        throw const BankAccountFlowException('Không tìm thấy tài khoản.');
       }
       final updated = _localAccounts[index].copyWith(
         bankName: bankName,
@@ -162,7 +162,7 @@ class BankAccountRepository {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
       throw const BankAccountFlowException(
-        'Phien dang nhap het han. Vui long dang nhap lai.',
+        'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
       );
     }
 
@@ -189,7 +189,7 @@ class BankAccountRepository {
     }
 
     throw const BankAccountFlowException(
-      'Chua tim thay cua hang cho tai khoan hien tai.',
+      'Chưa tìm thấy cửa hàng cho tài khoản hiện tại.',
     );
   }
 }

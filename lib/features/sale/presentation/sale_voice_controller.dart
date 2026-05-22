@@ -42,15 +42,15 @@ class SaleVoiceController {
         enabled: _enabled,
         localeId: _localeId,
         hint: _enabled
-            ? 'Nhan mic de noi. ${_localeId == 'vi_VN' ? 'Dang dung vi-VN.' : 'Dang fallback locale mac dinh.'}'
-            : 'Khong mo duoc microphone. Kiem tra quyen truy cap.',
+            ? 'Nhấn mic để nói. ${_localeId == 'vi_VN' ? 'Đang dùng vi-VN.' : 'Đang dùng locale mặc định.'}'
+            : 'Không mở được microphone. Kiểm tra quyền truy cập.',
       );
     } catch (_) {
       _enabled = false;
       return const SaleVoiceInitResult(
         enabled: false,
         localeId: null,
-        hint: 'Khong the khoi tao voice tren thiet bi nay.',
+        hint: 'Không thể khởi tạo voice trên thiết bị này.',
       );
     }
   }
@@ -97,14 +97,14 @@ class SaleVoiceController {
   String _mapSpeechError(String raw) {
     final msg = raw.toLowerCase();
     if (msg.contains('permission') || msg.contains('notallowed')) {
-      return 'Microphone bi tu choi. Hay cap quyen micro trong cai dat.';
+      return 'Microphone bị từ chối. Hãy cấp quyền micro trong cài đặt.';
     }
     if (msg.contains('network')) {
-      return 'Ket noi mang khong on dinh de nhan dang giong noi.';
+      return 'Kết nối mạng không ổn định để nhận dạng giọng nói.';
     }
     if (msg.contains('no match') || msg.contains('error_no_match')) {
-      return 'Khong nghe ro noi dung. Thu noi cham va ro hon.';
+      return 'Không nghe rõ nội dung. Thử nói chậm và rõ hơn.';
     }
-    return 'Voice gap loi: $raw';
+    return 'Voice gặp lỗi: $raw';
   }
 }

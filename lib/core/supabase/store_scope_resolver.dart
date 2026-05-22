@@ -19,7 +19,29 @@ class StoreScopeResolver {
     if (_cachedUserId == userId &&
         _cachedStoreId != null &&
         _cachedStoreId!.isNotEmpty) {
-      return _cachedStoreId!;
+      final cachedStoreId = _cachedStoreId!;
+      final cachedOwnerStore = await client
+          .from('stores')
+          .select('id')
+          .eq('id', cachedStoreId)
+          .eq('owner_id', userId)
+          .maybeSingle();
+      if (cachedOwnerStore != null) {
+        return cachedStoreId;
+      }
+
+      final cachedEmployeeStore = await client
+          .from('employees')
+          .select('store_id')
+          .eq('store_id', cachedStoreId)
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .maybeSingle();
+      if (cachedEmployeeStore != null) {
+        return cachedStoreId;
+      }
+
+      clearCache();
     }
 
     final ownerStore = await client
@@ -69,4 +91,3 @@ class StoreScopeException implements Exception {
   @override
   String toString() => message;
 }
-

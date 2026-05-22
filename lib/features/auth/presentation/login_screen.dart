@@ -69,7 +69,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const Text(
-                        'Dang nhap',
+                        'Đăng nhập',
                         textAlign: TextAlign.left,
                         style: TextStyle(
                           fontSize: 32,
@@ -79,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Quan ly cua hang nhanh hon cung voicenote',
+                        'Quản lý cửa hàng nhanh hơn cùng voicenote',
                         style: TextStyle(color: Color(0xFF64748B)),
                       ),
                       const SizedBox(height: 24),
@@ -89,15 +89,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         autocorrect: false,
-                        decoration: _inputDecoration('Nhap email'),
+                        decoration: _inputDecoration('Nhập email'),
                       ),
                       const SizedBox(height: 14),
-                      const Text('Mat khau'),
+                      const Text('Mật khẩu'),
                       const SizedBox(height: 6),
                       TextField(
                         controller: _passwordController,
                         obscureText: true,
-                        decoration: _inputDecoration('Nhap mat khau'),
+                        decoration: _inputDecoration('Nhập mật khẩu'),
                       ),
                       const SizedBox(height: 22),
                       FilledButton(
@@ -111,12 +111,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Text('Dang nhap'),
+                            : const Text('Đăng nhập'),
                       ),
                       if (!SupabaseBootstrap.isConfigured) ...[
                         const SizedBox(height: 10),
                         const Text(
-                          'Chua cau hinh Supabase. Chay app voi --dart-define de dang nhap.',
+                          'Chưa cấu hình Supabase. Chạy app với --dart-define để đăng nhập.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 12,
@@ -129,11 +129,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         alignment: WrapAlignment.center,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
-                          const Text('Chua co tai khoan? '),
+                          const Text('Chưa có tài khoản? '),
                           TextButton(
                             onPressed: () =>
                                 Navigator.pushNamed(context, '/register'),
-                            child: const Text('Dang ky ngay'),
+                            child: const Text('Đăng ký ngay'),
                           ),
                         ],
                       ),
@@ -166,15 +166,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      _showMessage('Vui long nhap email va mat khau');
+      _showMessage('Vui lòng nhập email và mật khẩu');
       return;
     }
     if (!email.contains('@')) {
-      _showMessage('Email khong hop le');
+      _showMessage('Email không hợp lệ');
       return;
     }
     if (!SupabaseBootstrap.isConfigured) {
-      _showMessage('Chua cau hinh SUPABASE_URL va SUPABASE_ANON_KEY');
+      _showMessage('Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY');
       return;
     }
 

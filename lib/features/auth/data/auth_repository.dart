@@ -24,7 +24,7 @@ class AuthRepository {
     final userId = response.user?.id ?? _client.auth.currentUser?.id;
     if (userId == null) {
       throw const AuthFlowException(
-        'Dang ky thanh cong nhung chua co session. Hay tat email confirmation de demo nhanh.',
+        'Đăng ký thành công nhưng chưa có session. Hãy tắt email confirmation để demo nhanh.',
       );
     }
 
@@ -37,10 +37,7 @@ class AuthRepository {
     });
   }
 
-  Future<void> signIn({
-    required String email,
-    required String password,
-  }) async {
+  Future<void> signIn({required String email, required String password}) async {
     await _client.auth.signInWithPassword(
       email: email.trim().toLowerCase(),
       password: password,
@@ -50,7 +47,7 @@ class AuthRepository {
   Future<PostLoginRoute> resolvePostLoginRoute() async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null) {
-      throw const AuthFlowException('Khong tim thay session dang nhap.');
+      throw const AuthFlowException('Không tìm thấy session đăng nhập.');
     }
 
     final user = await _client

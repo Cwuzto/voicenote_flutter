@@ -68,7 +68,10 @@ class EmployeeRepository {
       return [];
     }
 
-    final userIds = employees.map((e) => e['user_id'].toString()).toSet().toList();
+    final userIds = employees
+        .map((e) => e['user_id'].toString())
+        .toSet()
+        .toList();
     final userRows = await _supabase
         .from('users')
         .select('id, full_name, email')
@@ -85,7 +88,7 @@ class EmployeeRepository {
         employeeId: row['id'].toString(),
         userId: userId,
         name: (user?['full_name'] ?? '').toString().trim().isEmpty
-            ? 'Nhan vien'
+            ? 'Nhân viên'
             : user!['full_name'].toString(),
         email: (user?['email'] ?? '').toString(),
         isActive: row['is_active'] == true,
@@ -118,7 +121,7 @@ class EmployeeRepository {
         .maybeSingle();
     if (user == null) {
       throw const EmployeeFlowException(
-        'Email chua ton tai. Hay tao tai khoan cho nhan vien truoc.',
+        'Email chưa tồn tại. Hãy tạo tài khoản cho nhân viên trước.',
       );
     }
 
@@ -175,7 +178,7 @@ class EmployeeRepository {
         (e) => e.employeeId == employee.employeeId,
       );
       if (index < 0) {
-        throw const EmployeeFlowException('Khong tim thay nhan vien.');
+        throw const EmployeeFlowException('Không tìm thấy nhân viên.');
       }
       final updated = _localEmployees[index].copyWith(
         name: fullName,
@@ -209,7 +212,7 @@ class EmployeeRepository {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
       throw const EmployeeFlowException(
-        'Phien dang nhap het han. Vui long dang nhap lai.',
+        'Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.',
       );
     }
 
@@ -236,7 +239,7 @@ class EmployeeRepository {
     }
 
     throw const EmployeeFlowException(
-      'Chua tim thay cua hang cho tai khoan hien tai.',
+      'Chưa tìm thấy cửa hàng cho tài khoản hiện tại.',
     );
   }
 }

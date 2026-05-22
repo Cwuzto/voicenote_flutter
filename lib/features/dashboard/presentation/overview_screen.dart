@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_dialogs.dart';
+import '../../../core/widgets/gradient_background.dart';
 import '../domain/dashboard_time_filter.dart';
 import '../../orders/data/order_repository.dart';
 import '../../orders/presentation/order_models.dart';
@@ -26,6 +28,14 @@ class _OverviewScreenState extends State<OverviewScreen> {
   DateTimeRange? _chartCustomRange;
   DashboardRangeKey _bestRangeKey = DashboardRangeKey.thisMonth;
   DateTimeRange? _bestCustomRange;
+  List<OrderVm>? _lastOverviewOrdersRef;
+  DashboardRangeKey? _lastRevenueRangeKey;
+  DateTimeRange? _lastRevenueCustomRange;
+  DashboardRangeKey? _lastChartRangeKey;
+  DateTimeRange? _lastChartCustomRange;
+  DashboardRangeKey? _lastBestRangeKey;
+  DateTimeRange? _lastBestCustomRange;
+  _OverviewSnapshot? _cachedSnapshot;
 
   @override
   void initState() {
@@ -35,212 +45,203 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final revenueRange = DashboardTimeFilter.resolveRange(
-      _revenueRangeKey,
-      custom: _revenueCustomRange,
-    );
-    final chartRange = DashboardTimeFilter.resolveRange(
-      _chartRangeKey,
-      custom: _chartCustomRange,
-    );
-    final bestRange = DashboardTimeFilter.resolveRange(
-      _bestRangeKey,
-      custom: _bestCustomRange,
-    );
-
-    final revenueOrders = _ordersInRange(_paidOrders, revenueRange);
-    final chartOrders = _ordersInRange(_paidOrders, chartRange);
-    final bestOrders = _ordersInRange(_paidOrders, bestRange);
+    final snapshot = _resolveOverviewSnapshot();
     final hasAnyPaidData = _paidOrders.isNotEmpty;
 
-    final revenueAmount = revenueOrders.fold<int>(
-      0,
-      (sum, order) => sum + order.totalAmount,
-    );
-    final orderCount = revenueOrders.length;
-    final chartData = _buildChartData(chartOrders, chartRange, _chartRangeKey);
-    final bestRows = _aggregateBestSellers(bestOrders);
-
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Row(
-              children: [
-                Icon(Icons.storefront_rounded, size: 34, color: Color(0xFF1565FF)),
-                SizedBox(width: 10),
-                Text(
-                  'voicenote',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatTile(
-                    icon: Icons.trending_up_rounded,
-                    value: _formatCurrency(revenueAmount),
-                    label: 'Doanh thu ${_rangeLabel(_revenueRangeKey).toLowerCase()}',
-                    onTap: () => _pickRange(_FilterSection.revenue),
-                    showFilterArrow: true,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _StatTile(
-                    icon: Icons.receipt_long_rounded,
-                    value: '$orderCount',
-                    label: 'Don ${_rangeLabel(_revenueRangeKey).toLowerCase()}',
-                  ),
-                ),
-              ],
-            ),
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  _errorMessage!,
-                  style: const TextStyle(
-                    color: Color(0xFFB91C1C),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 16),
-            _SectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return GradientBackground(
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
                 children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Doanh thu',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      _TimeChip(
-                        label: _rangeLabel(
-                          _chartRangeKey,
-                          custom: _chartCustomRange,
-                        ),
-                        onTap: () => _pickRange(_FilterSection.chart),
-                      ),
-                    ],
+                  Icon(
+                    Icons.storefront_rounded,
+                    size: 34,
+                    color: Color(0xFF1565FF),
                   ),
-                  const SizedBox(height: 12),
-                  if (_loading) ...[
-                    const SizedBox(
-                      height: 190,
-                      child: Center(child: CircularProgressIndicator()),
+                  SizedBox(width: 10),
+                  Text(
+                    'VoiceNote',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
                     ),
-                  ] else if (!hasAnyPaidData) ...[
-                    _EmptyState(
-                      icon: Icons.trending_up_rounded,
-                      message: 'Ban chua co don nao, tao thu don de xem thong ke.',
-                      actionText: 'Tao thu don',
-                      onAction: _openSale,
-                    ),
-                  ] else if (chartData.points.isEmpty) ...[
-                    const _EmptyState(
-                      icon: Icons.trending_up_rounded,
-                      message: 'Chua co du lieu trong khoang thoi gian nay.',
-                    ),
-                  ] else ...[
-                    SizedBox(
-                      height: 220,
-                      child: _MiniLineChart(data: chartData),
-                    ),
-                  ],
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            _SectionCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: 16),
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Hang hoa ban chay',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      _TimeChip(
-                        label: _rangeLabel(
-                          _bestRangeKey,
-                          custom: _bestCustomRange,
-                        ),
-                        onTap: () => _pickRange(_FilterSection.best),
-                      ),
-                    ],
+                  Expanded(
+                    child: _StatTile(
+                      icon: Icons.trending_up_rounded,
+                      value: _formatCurrency(snapshot.revenueAmount),
+                      label:
+                          'Doanh thu ${_rangeLabel(_revenueRangeKey).toLowerCase()}',
+                      onTap: () => _pickRange(_FilterSection.revenue),
+                      showFilterArrow: true,
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  if (_loading) ...[
-                    const Center(child: CircularProgressIndicator()),
-                  ] else if (!hasAnyPaidData) ...[
-                    const _EmptyState(
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _StatTile(
                       icon: Icons.receipt_long_rounded,
-                      message: 'Chua co du lieu ban chay',
+                      value: '${snapshot.orderCount}',
+                      label:
+                          'Đơn ${_rangeLabel(_revenueRangeKey).toLowerCase()}',
                     ),
-                  ] else if (bestRows.isEmpty) ...[
-                    const _EmptyState(
-                      icon: Icons.receipt_long_rounded,
-                      message: 'Khong co mat hang nao trong khoang nay',
+                  ),
+                ],
+              ),
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(
+                      color: Color(0xFFB91C1C),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
-                  ] else ...[
-                    ...bestRows.take(3).toList().asMap().entries.map(
-                      (entry) => _BestSellerRow(
-                        data: _BestSellerData(
-                          rank: entry.key + 1,
-                          productName: entry.value.productName,
-                          quantity: entry.value.quantity,
-                        ),
-                      ),
-                    ),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () {
-                          Navigator.push<void>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const BestSellerScreen(),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              _SectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Doanh thu',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
                             ),
-                          );
-                        },
-                        child: const Text(
-                          'Xem tat ca',
-                          style: TextStyle(
-                            color: Color(0xFF1565FF),
-                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        _TimeChip(
+                          label: _rangeLabel(
+                            _chartRangeKey,
+                            custom: _chartCustomRange,
+                          ),
+                          onTap: () => _pickRange(_FilterSection.chart),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_loading) ...[
+                      const SizedBox(
+                        height: 190,
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                    ] else if (!hasAnyPaidData) ...[
+                      _EmptyState(
+                        icon: Icons.trending_up_rounded,
+                        message:
+                            'Bạn chưa có đơn nào, tạo thử đơn để xem thống kê.',
+                        actionText: 'Tạo thử đơn',
+                        onAction: _openSale,
+                      ),
+                    ] else if (snapshot.chartData.points.isEmpty) ...[
+                      const _EmptyState(
+                        icon: Icons.trending_up_rounded,
+                        message: 'Chưa có dữ liệu trong khoảng thời gian này.',
+                      ),
+                    ] else ...[
+                      SizedBox(
+                        height: 220,
+                        child: _MiniLineChart(data: snapshot.chartData),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _SectionCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Hàng hóa bán chạy',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        _TimeChip(
+                          label: _rangeLabel(
+                            _bestRangeKey,
+                            custom: _bestCustomRange,
+                          ),
+                          onTap: () => _pickRange(_FilterSection.best),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_loading) ...[
+                      const Center(child: CircularProgressIndicator()),
+                    ] else if (!hasAnyPaidData) ...[
+                      const _EmptyState(
+                        icon: Icons.receipt_long_rounded,
+                        message: 'Chưa có dữ liệu bán chạy',
+                      ),
+                    ] else if (snapshot.bestRows.isEmpty) ...[
+                      const _EmptyState(
+                        icon: Icons.receipt_long_rounded,
+                        message: 'Không có mặt hàng nào trong khoảng này',
+                      ),
+                    ] else ...[
+                      ...snapshot.bestRows
+                          .take(3)
+                          .toList()
+                          .asMap()
+                          .entries
+                          .map(
+                            (entry) => _BestSellerRow(
+                              data: _BestSellerData(
+                                rank: entry.key + 1,
+                                productName: entry.value.productName,
+                                quantity: entry.value.quantity,
+                              ),
+                            ),
+                          ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.push<void>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const BestSellerScreen(),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'Xem tất cả',
+                            style: TextStyle(
+                              color: Color(0xFF1565FF),
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-          ],
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
@@ -255,7 +256,9 @@ class _OverviewScreenState extends State<OverviewScreen> {
       final orders = await _orderRepository.fetchOrders();
       if (!mounted) return;
       setState(() {
-        _paidOrders = orders.where((o) => o.status == OrderStatusVm.paid).toList();
+        _paidOrders = orders
+            .where((o) => o.status == OrderStatusVm.paid)
+            .toList();
       });
     } catch (e) {
       if (!mounted) return;
@@ -281,6 +284,56 @@ class _OverviewScreenState extends State<OverviewScreen> {
     await _loadOverview();
   }
 
+  _OverviewSnapshot _resolveOverviewSnapshot() {
+    final canReuse =
+        identical(_lastOverviewOrdersRef, _paidOrders) &&
+        _lastRevenueRangeKey == _revenueRangeKey &&
+        _sameRange(_lastRevenueCustomRange, _revenueCustomRange) &&
+        _lastChartRangeKey == _chartRangeKey &&
+        _sameRange(_lastChartCustomRange, _chartCustomRange) &&
+        _lastBestRangeKey == _bestRangeKey &&
+        _sameRange(_lastBestCustomRange, _bestCustomRange) &&
+        _cachedSnapshot != null;
+    if (canReuse) {
+      return _cachedSnapshot!;
+    }
+
+    final revenueRange = DashboardTimeFilter.resolveRange(
+      _revenueRangeKey,
+      custom: _revenueCustomRange,
+    );
+    final chartRange = DashboardTimeFilter.resolveRange(
+      _chartRangeKey,
+      custom: _chartCustomRange,
+    );
+    final bestRange = DashboardTimeFilter.resolveRange(
+      _bestRangeKey,
+      custom: _bestCustomRange,
+    );
+    final revenueOrders = _ordersInRange(_paidOrders, revenueRange);
+    final chartOrders = _ordersInRange(_paidOrders, chartRange);
+    final bestOrders = _ordersInRange(_paidOrders, bestRange);
+
+    final snapshot = _OverviewSnapshot(
+      revenueAmount: revenueOrders.fold<int>(
+        0,
+        (sum, order) => sum + order.totalAmount,
+      ),
+      orderCount: revenueOrders.length,
+      chartData: _buildChartData(chartOrders, chartRange, _chartRangeKey),
+      bestRows: _aggregateBestSellers(bestOrders),
+    );
+    _lastOverviewOrdersRef = _paidOrders;
+    _lastRevenueRangeKey = _revenueRangeKey;
+    _lastRevenueCustomRange = _revenueCustomRange;
+    _lastChartRangeKey = _chartRangeKey;
+    _lastChartCustomRange = _chartCustomRange;
+    _lastBestRangeKey = _bestRangeKey;
+    _lastBestCustomRange = _bestCustomRange;
+    _cachedSnapshot = snapshot;
+    return snapshot;
+  }
+
   List<OrderVm> _ordersInRange(
     List<OrderVm> orders,
     DashboardResolvedRange range,
@@ -290,12 +343,19 @@ class _OverviewScreenState extends State<OverviewScreen> {
     }).toList();
   }
 
+  bool _sameRange(DateTimeRange? a, DateTimeRange? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return a == b;
+    return a.start == b.start && a.end == b.end;
+  }
+
   _ChartRenderData _buildChartData(
     List<OrderVm> orders,
     DashboardResolvedRange range,
     DashboardRangeKey rangeKey,
   ) {
-    final isSingleDay = rangeKey == DashboardRangeKey.today ||
+    final isSingleDay =
+        rangeKey == DashboardRangeKey.today ||
         rangeKey == DashboardRangeKey.yesterday;
     final bucket = <int, double>{};
 
@@ -304,13 +364,18 @@ class _OverviewScreenState extends State<OverviewScreen> {
       final key = isSingleDay
           ? DateTime(dt.year, dt.month, dt.day, dt.hour).millisecondsSinceEpoch
           : DateTime(dt.year, dt.month, dt.day).millisecondsSinceEpoch;
-      bucket.update(key, (value) => value + order.totalAmount, ifAbsent: () => order.totalAmount.toDouble());
+      bucket.update(
+        key,
+        (value) => value + order.totalAmount,
+        ifAbsent: () => order.totalAmount.toDouble(),
+      );
     }
 
-    final points = bucket.entries
-        .map((e) => _ChartPointVm(xMillis: e.key.toDouble(), y: e.value))
-        .toList()
-      ..sort((a, b) => a.xMillis.compareTo(b.xMillis));
+    final points =
+        bucket.entries
+            .map((e) => _ChartPointVm(xMillis: e.key.toDouble(), y: e.value))
+            .toList()
+          ..sort((a, b) => a.xMillis.compareTo(b.xMillis));
 
     final startX = range.start.millisecondsSinceEpoch.toDouble();
     final endX = range.end.millisecondsSinceEpoch.toDouble();
@@ -374,24 +439,26 @@ class _OverviewScreenState extends State<OverviewScreen> {
   }
 
   Future<void> _pickRange(_FilterSection section) async {
-    final selected = await showModalBottomSheet<DashboardRangeKey>(
+    final selected = await showAppOptionSheet<DashboardRangeKey>(
       context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: DashboardRangeKey.values
-                .map(
-                  (k) => ListTile(
-                    title: Text(_rangeLabel(k)),
-                    onTap: () => Navigator.pop(context, k),
-                  ),
-                )
-                .toList(),
-          ),
-        );
-      },
+      title: 'Chọn khoảng thời gian',
+      description: 'Áp dụng nhanh cho thẻ thống kê này.',
+      actions: DashboardRangeKey.values
+          .map(
+            (k) => AppSheetAction(
+              label: _rangeLabel(k),
+              value: k,
+              selected: switch (section) {
+                _FilterSection.revenue => _revenueRangeKey == k,
+                _FilterSection.chart => _chartRangeKey == k,
+                _FilterSection.best => _bestRangeKey == k,
+              },
+              icon: k == DashboardRangeKey.custom
+                  ? Icons.date_range_rounded
+                  : Icons.schedule_rounded,
+            ),
+          )
+          .toList(),
     );
 
     if (!mounted || selected == null) return;
@@ -446,19 +513,19 @@ class _OverviewScreenState extends State<OverviewScreen> {
     }
     switch (key) {
       case DashboardRangeKey.today:
-        return 'Hom nay';
+        return 'Hôm nay';
       case DashboardRangeKey.yesterday:
-        return 'Hom qua';
+        return 'Hôm qua';
       case DashboardRangeKey.sevenDays:
-        return '7 ngay qua';
+        return '7 ngày qua';
       case DashboardRangeKey.thisMonth:
-        return 'Thang nay';
+        return 'Tháng nay';
       case DashboardRangeKey.lastMonth:
-        return 'Thang truoc';
+        return 'Tháng trước';
       case DashboardRangeKey.thisYear:
-        return 'Nam nay';
+        return 'Năm nay';
       case DashboardRangeKey.custom:
-        return 'Tuy chinh';
+        return 'Tùy chỉnh';
     }
   }
 
@@ -483,6 +550,20 @@ class _OverviewScreenState extends State<OverviewScreen> {
 }
 
 enum _FilterSection { revenue, chart, best }
+
+class _OverviewSnapshot {
+  const _OverviewSnapshot({
+    required this.revenueAmount,
+    required this.orderCount,
+    required this.chartData,
+    required this.bestRows,
+  });
+
+  final int revenueAmount;
+  final int orderCount;
+  final _ChartRenderData chartData;
+  final List<_BestSellerRowVm> bestRows;
+}
 
 class _StatTile extends StatelessWidget {
   const _StatTile({
@@ -594,7 +675,11 @@ class _TimeChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF64748B)),
+            const Icon(
+              Icons.access_time_rounded,
+              size: 14,
+              color: Color(0xFF64748B),
+            ),
             const SizedBox(width: 6),
             Flexible(
               child: Text(
@@ -678,7 +763,9 @@ class _BestSellerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = data.rank <= 3 ? _rankColors[data.rank - 1] : const Color(0xFF64748B);
+    final color = data.rank <= 3
+        ? _rankColors[data.rank - 1]
+        : const Color(0xFF64748B);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -698,7 +785,10 @@ class _BestSellerRow extends StatelessWidget {
             ),
             child: Text(
               data.rank.toString(),
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -894,8 +984,12 @@ class _MiniLineChartPainter extends CustomPainter {
 
     final width = size.width - leftPad - rightPad;
     final height = size.height - topPad - bottomPad;
-    final xRange = (data.endX - data.startX).abs() < 1 ? 1.0 : data.endX - data.startX;
-    final yRange = (data.maxY - data.minY).abs() < 1 ? 1.0 : data.maxY - data.minY;
+    final xRange = (data.endX - data.startX).abs() < 1
+        ? 1.0
+        : data.endX - data.startX;
+    final yRange = (data.maxY - data.minY).abs() < 1
+        ? 1.0
+        : data.maxY - data.minY;
 
     Offset mapPoint(_ChartPointVm p) {
       final dx = leftPad + ((p.xMillis - data.startX) / xRange) * width;
@@ -911,11 +1005,16 @@ class _MiniLineChartPainter extends CustomPainter {
       ..strokeWidth = 1;
     for (int i = 0; i < 3; i++) {
       final y = topPad + (height * i / 2);
-      canvas.drawLine(Offset(leftPad, y), Offset(size.width - rightPad, y), gridPaint);
+      canvas.drawLine(
+        Offset(leftPad, y),
+        Offset(size.width - rightPad, y),
+        gridPaint,
+      );
     }
 
     if (plotPoints.length > 1) {
-      final smoothPath = Path()..moveTo(plotPoints.first.dx, plotPoints.first.dy);
+      final smoothPath = Path()
+        ..moveTo(plotPoints.first.dx, plotPoints.first.dy);
       for (int i = 1; i < plotPoints.length; i++) {
         final prev = plotPoints[i - 1];
         final cur = plotPoints[i];
@@ -985,6 +1084,7 @@ class _MiniLineChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MiniLineChartPainter oldDelegate) {
-    return oldDelegate.data != data || oldDelegate.selectedIndex != selectedIndex;
+    return oldDelegate.data != data ||
+        oldDelegate.selectedIndex != selectedIndex;
   }
 }

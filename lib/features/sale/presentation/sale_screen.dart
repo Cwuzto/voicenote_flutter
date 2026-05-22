@@ -1,12 +1,13 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/widgets/gradient_background.dart';
 import '../../../core/supabase/supabase_bootstrap.dart';
 import '../../orders/presentation/order_models.dart';
+import '../../orders/presentation/order_qr_payment_screen.dart';
 import '../../orders/presentation/order_store.dart';
 import '../../products/data/product_repository.dart';
 import 'sale_order_input_parser.dart';
@@ -34,9 +35,10 @@ class _SaleScreenState extends State<SaleScreen> {
   bool _savingOrder = false;
   bool _voiceBusy = false;
   bool _voiceCancelled = false;
+  bool _voiceAutoSubmitted = false;
   bool _searchExpanded = false;
   String? _voiceHint;
-  double _soundLevel = 0;
+  final ValueNotifier<double> _soundLevelNotifier = ValueNotifier<double>(0);
   bool get _listening => _voiceController.isListening;
   bool get _isEditMode => widget.editingOrder != null;
 
@@ -56,6 +58,7 @@ class _SaleScreenState extends State<SaleScreen> {
     _lineFocusNode
       ..removeListener(_onLineFocusChanged)
       ..dispose();
+    _soundLevelNotifier.dispose();
     _lineController.dispose();
     super.dispose();
   }
@@ -73,121 +76,91 @@ class _SaleScreenState extends State<SaleScreen> {
         final panelHeight = keyboardVisible
             ? 180.0
             : (screenHeight < 700 ? 190.0 : 220.0);
-        const quickBarFootprint = 82.0;
-        final panelVisible = _state.panelMode != SaleBottomPanelMode.none;
+        final gridPanelVisible = _state.panelMode == SaleBottomPanelMode.grid;
         return Scaffold(
           resizeToAvoidBottomInset: false,
           backgroundColor: Colors.transparent,
-          body: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFEFF6FF),
-                  Color(0xFFF8FAFC),
-                  Color(0xFFE0ECFF),
-                ],
-              ),
-            ),
+          body: GradientBackground(
             child: SafeArea(
-              child: Stack(
-                children: [
-                  Column(
-                    children: [
-                      _buildHeader(canDone, total),
-                      _buildCustomerRow(),
-                      if (_voiceHint != null) _buildVoiceHint(),
-                      Flexible(
-                        fit: FlexFit.tight,
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 220),
-                          switchInCurve: Curves.easeOutCubic,
-                          switchOutCurve: Curves.easeInCubic,
-                          transitionBuilder: (child, animation) {
-                            return FadeTransition(
-                              opacity: animation,
-                              child: SlideTransition(
-                                position: Tween<Offset>(
-                                  begin: const Offset(0, 0.04),
-                                  end: Offset.zero,
-                                ).animate(animation),
-                                child: child,
-                              ),
-                            );
-                          },
-                          child: _state.cart.isEmpty
-                              ? const SizedBox(
-                                  key: ValueKey('sale-guide'),
-                                  child: Center(child: _SaleGuide()),
-                                )
-                              : KeyedSubtree(
-                                  key: const ValueKey('sale-cart'),
-                                  child: _buildCart(total),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () => FocusScope.of(context).unfocus(),
+                child: Column(
+                  children: [
+                    _buildHeader(canDone, total),
+                    _buildCustomerRow(),
+                    if (_voiceHint != null) _buildVoiceHint(),
+                    Flexible(
+                      fit: FlexFit.tight,
+                      child: Stack(
+                        children: [
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            transitionBuilder: (child, animation) {
+                              return FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(0, 0.04),
+                                    end: Offset.zero,
+                                  ).animate(animation),
+                                  child: child,
                                 ),
-                        ),
-                      ),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        transitionBuilder: (child, animation) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(0, 0.06),
-                                end: Offset.zero,
-                              ).animate(animation),
-                              child: child,
+                              );
+                            },
+                            child: _state.cart.isEmpty
+                                ? const SizedBox(
+                                    key: ValueKey('sale-guide'),
+                                    child: Center(child: _SaleGuide()),
+                                  )
+                                : KeyedSubtree(
+                                    key: const ValueKey('sale-cart'),
+                                    child: _buildCart(total),
+                                  ),
+                          ),
+                          if (gridPanelVisible)
+                            Positioned.fill(
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onTap: () {
+                                  FocusScope.of(context).unfocus();
+                                  _state.setPanelMode(SaleBottomPanelMode.none);
+                                },
+                              ),
                             ),
-                          );
-                        },
-                        child: _state.panelMode == SaleBottomPanelMode.grid
-                            ? _buildQuickGrid(height: panelHeight)
-                            : _state.panelMode == SaleBottomPanelMode.listening
-                            ? _buildListeningPanel(height: panelHeight)
-                            : const SizedBox.shrink(),
+                        ],
                       ),
+                    ),
+                    if (_state.panelMode == SaleBottomPanelMode.listening)
                       _buildQuickBar(),
-                    ],
-                  ),
-                  if (panelVisible)
-                    Positioned.fill(
-                      bottom: panelHeight + quickBarFootprint,
-                      child: IgnorePointer(
-                        child: TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0, end: 1),
-                          duration: const Duration(milliseconds: 180),
-                          curve: Curves.easeOutCubic,
-                          builder: (context, value, child) {
-                            return BackdropFilter(
-                              filter: ImageFilter.blur(
-                                sigmaX: 4 * value,
-                                sigmaY: 4 * value,
-                              ),
-                              child: Container(
-                                color: const Color(
-                                  0xFF0F172A,
-                                ).withValues(alpha: 0.04 * value),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.06),
+                              end: Offset.zero,
+                            ).animate(animation),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: _state.panelMode == SaleBottomPanelMode.grid
+                          ? _buildQuickGrid(height: panelHeight)
+                          : _state.panelMode == SaleBottomPanelMode.listening
+                          ? _buildListeningPanel(height: panelHeight)
+                          : const SizedBox.shrink(),
                     ),
-                  if (panelVisible)
-                    Positioned.fill(
-                      bottom: panelHeight + quickBarFootprint,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: () {
-                          FocusScope.of(context).unfocus();
-                          _state.setPanelMode(SaleBottomPanelMode.none);
-                        },
-                      ),
-                    ),
-                ],
+                    if (_state.panelMode != SaleBottomPanelMode.listening)
+                      _buildQuickBar(),
+                  ],
+                ),
               ),
             ),
           ),
@@ -214,7 +187,7 @@ class _SaleScreenState extends State<SaleScreen> {
           ),
           Expanded(
             child: Text(
-              _isEditMode ? 'Sua hoa don' : 'Ban hang',
+              _isEditMode ? 'Sửa hóa đơn' : 'Bán hàng',
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
             ),
           ),
@@ -236,7 +209,7 @@ class _SaleScreenState extends State<SaleScreen> {
                     ),
                   )
                 : Text(
-                    _isEditMode ? 'Cap nhat' : 'Xong',
+                    _isEditMode ? 'Cập nhật' : 'Xong',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
           ),
@@ -332,7 +305,7 @@ class _SaleScreenState extends State<SaleScreen> {
             children: [
               const Expanded(
                 child: Text(
-                  'Tong cong',
+                  'Tổng cộng',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -389,8 +362,14 @@ class _SaleScreenState extends State<SaleScreen> {
       key: const ValueKey('listening-panel'),
       height: height,
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(color: Colors.white),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFF8FBFF), Color(0xFFFFFFFF)],
+        ),
+      ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           return SingleChildScrollView(
@@ -400,49 +379,191 @@ class _SaleScreenState extends State<SaleScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    _listening ? Icons.mic_rounded : Icons.hearing_rounded,
-                    size: compact ? 34 : 40,
-                    color: const Color(0xFF1565FF),
-                  ),
-                  SizedBox(height: compact ? 4 : 8),
-                  _ListeningWave(active: _listening, level: _soundLevel),
-                  SizedBox(height: compact ? 6 : 10),
-                  Text(
-                    _listening ? 'Dang nghe...' : 'Dang xu ly...',
-                    style: TextStyle(
-                      fontSize: compact ? 14 : 16,
-                      fontWeight: FontWeight.w700,
+                  Container(
+                    width: compact ? 64 : 72,
+                    height: compact ? 64 : 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFFE8F1FF), Color(0xFFD9E9FF)],
+                      ),
+                      border: Border.all(color: const Color(0xFFC9DEFF)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(
+                            0xFF1565FF,
+                          ).withValues(alpha: 0.12),
+                          blurRadius: 22,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      _listening
+                          ? Icons.graphic_eq_rounded
+                          : Icons.hearing_rounded,
+                      size: compact ? 30 : 34,
+                      color: const Color(0xFF1565FF),
                     ),
                   ),
-                  SizedBox(height: compact ? 4 : 8),
-                  Text(
-                    _lineController.text.trim().isEmpty
-                        ? 'Hay noi ten mon, so luong, gia. Vi du: 2 coca 10k'
-                        : _lineController.text.trim(),
-                    maxLines: compact ? 1 : 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Color(0xFF64748B)),
-                  ),
-                  SizedBox(height: compact ? 10 : 16),
-                  Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 12,
-                    runSpacing: 8,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _voiceBusy ? null : _cancelVoice,
-                        icon: const Icon(Icons.close_rounded),
-                        label: const Text('Huy'),
+                  SizedBox(height: compact ? 10 : 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color:
+                          (_listening
+                                  ? const Color(0xFFE0F2FE)
+                                  : const Color(0xFFF1F5F9))
+                              .withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      _listening
+                          ? 'Đang nghe trực tiếp'
+                          : 'Đang hoàn tất nhận dạng',
+                      style: TextStyle(
+                        fontSize: compact ? 11 : 12,
+                        fontWeight: FontWeight.w700,
+                        color: _listening
+                            ? const Color(0xFF0C4A6E)
+                            : const Color(0xFF475569),
                       ),
-                      FilledButton.icon(
-                        onPressed: _voiceBusy ? null : _acceptVoice,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF1565FF),
-                        ),
-                        icon: const Icon(Icons.send_rounded),
-                        label: const Text('Them'),
+                    ),
+                  ),
+                  SizedBox(height: compact ? 8 : 10),
+                  ValueListenableBuilder<double>(
+                    valueListenable: _soundLevelNotifier,
+                    builder: (context, level, _) {
+                      return _ListeningWave(active: _listening, level: level);
+                    },
+                  ),
+                  SizedBox(height: compact ? 10 : 14),
+                  Text(
+                    _listening ? 'Đang nghe...' : 'Đang xử lý...',
+                    style: TextStyle(
+                      fontSize: compact ? 15 : 18,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
+                  SizedBox(height: compact ? 8 : 12),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _lineController,
+                    builder: (context, value, _) {
+                      final transcript = value.text.trim();
+                      final hasTranscript = transcript.isNotEmpty;
+                      return Column(
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.fromLTRB(
+                              compact ? 14 : 16,
+                              compact ? 12 : 14,
+                              compact ? 14 : 16,
+                              compact ? 12 : 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFDCE8FA),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFF0F172A,
+                                  ).withValues(alpha: 0.04),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 28,
+                                      height: 28,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFEAF2FF),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Icon(
+                                        Icons.chat_bubble_outline_rounded,
+                                        size: 16,
+                                        color: Color(0xFF1565FF),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Text(
+                                      'Nội dung nhận được',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF334155),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: compact ? 8 : 10),
+                                Text(
+                                  hasTranscript
+                                      ? transcript
+                                      : 'Hãy nói tên món, số lượng, giá. Ví dụ: 2 coca 10k',
+                                  maxLines: compact ? 2 : 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: hasTranscript
+                                        ? const Color(0xFF0F172A)
+                                        : const Color(0xFF64748B),
+                                    fontSize: compact ? 14 : 15,
+                                    fontWeight: hasTranscript
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(height: compact ? 10 : 12),
+                          Text(
+                            _listening
+                                ? 'Chạm nút mic lần nữa để hủy phiên nghe.'
+                                : hasTranscript
+                                ? 'Nếu app nghe chưa đúng, bạn có thể sửa ở ô nhập rồi bấm gửi.'
+                                : 'Giữ không gian yên tĩnh một chút để nhận dạng chính xác hơn.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  SizedBox(height: compact ? 8 : 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      _VoiceInfoChip(
+                        icon: Icons.auto_awesome_rounded,
+                        label: 'Tự thêm khi nghe xong',
+                      ),
+                      SizedBox(width: 8),
+                      _VoiceInfoChip(
+                        icon: Icons.edit_rounded,
+                        label: 'Có thể sửa nhanh',
                       ),
                     ],
                   ),
@@ -456,180 +577,203 @@ class _SaleScreenState extends State<SaleScreen> {
   }
 
   Widget _buildQuickBar() {
-    final hasText = _lineController.text.trim().isNotEmpty;
-    final showExpandedSearch =
-        _searchExpanded || hasText || _lineFocusNode.hasFocus;
+    return AnimatedBuilder(
+      animation: Listenable.merge([_lineController, _lineFocusNode]),
+      builder: (context, _) {
+        final hasText = _lineController.text.trim().isNotEmpty;
+        final showExpandedSearch =
+            _searchExpanded || hasText || _lineFocusNode.hasFocus;
+        final listeningMode = _state.panelMode == SaleBottomPanelMode.listening;
+        final micButtonShowsCancel = _listening;
+        final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+        final bottomSpacing = keyboardInset > 0
+            ? keyboardInset
+            : (listeningMode ? 0.0 : 12.0);
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      height: 70,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFDCE8FA)),
-      ),
-      child: Row(
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(999),
-            onTap: () {
-              FocusScope.of(context).unfocus();
-              _state.toggleGridPanel();
-            },
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                color: Color(0xFFE5EAF2),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.grid_view_rounded),
-            ),
+        return Container(
+          margin: EdgeInsets.fromLTRB(12, 0, 12, bottomSpacing),
+          height: 70,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFDCE8FA)),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: SizeTransition(
-                    sizeFactor: animation,
-                    axis: Axis.horizontal,
-                    axisAlignment: -1,
-                    child: child,
-                  ),
-                );
-              },
-              child: showExpandedSearch
-                  ? AnimatedContainer(
-                      key: const ValueKey('search-expanded'),
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutCubic,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: _lineFocusNode.hasFocus
-                              ? const Color(0xFF1565FF).withValues(alpha: 0.35)
-                              : const Color(0xFFE2E8F0),
-                        ),
-                        boxShadow: _lineFocusNode.hasFocus
-                            ? [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFF1565FF,
-                                  ).withValues(alpha: 0.14),
-                                  blurRadius: 12,
-                                  spreadRadius: 1,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: TextField(
-                        controller: _lineController,
-                        focusNode: _lineFocusNode,
-                        onTap: () {
-                          if (_state.panelMode != SaleBottomPanelMode.none) {
-                            _state.setPanelMode(SaleBottomPanelMode.none);
-                          }
-                        },
-                        onChanged: (_) => setState(() {}),
-                        onSubmitted: (_) => _addFromInput(),
-                        decoration: InputDecoration(
-                          hintText: 'Nhap ten hang + gia',
-                          prefixIcon: const Icon(
-                            Icons.search_rounded,
-                            size: 20,
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(999),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-                    )
-                  : InkWell(
-                      key: const ValueKey('search-collapsed'),
-                      borderRadius: BorderRadius.circular(999),
-                      onTap: _expandSearchInput,
-                      child: Container(
-                        height: 44,
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.search_rounded,
-                              size: 18,
-                              color: Color(0xFF64748B),
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              'Nhap ten hang + gia',
-                              style: TextStyle(
-                                color: Color(0xFF64748B),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          InkWell(
-            borderRadius: BorderRadius.circular(999),
-            onTap: _voiceBusy
-                ? null
-                : (hasText ? _addFromInput : _handleVoiceTap),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: hasText
-                    ? const Color(0xFF1565FF)
-                    : const Color(0xFFE5EAF2),
-                shape: BoxShape.circle,
-              ),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 140),
-                transitionBuilder: (child, animation) {
-                  return ScaleTransition(scale: animation, child: child);
+          child: Row(
+            children: [
+              InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () {
+                  FocusScope.of(context).unfocus();
+                  _state.toggleGridPanel();
                 },
-                child: Icon(
-                  key: ValueKey('${hasText}_${_listening}_$_voiceBusy'),
-                  hasText
-                      ? Icons.send_rounded
-                      : (_listening
-                            ? Icons.stop_circle_outlined
-                            : (_voiceBusy
-                                  ? Icons.hourglass_top_rounded
-                                  : Icons.mic_rounded)),
-                  color: hasText ? Colors.white : null,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE5EAF2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.grid_view_rounded),
                 ),
               ),
-            ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SizeTransition(
+                        sizeFactor: animation,
+                        axis: Axis.horizontal,
+                        axisAlignment: -1,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: showExpandedSearch
+                      ? AnimatedContainer(
+                          key: const ValueKey('search-expanded'),
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: _lineFocusNode.hasFocus
+                                  ? const Color(
+                                      0xFF1565FF,
+                                    ).withValues(alpha: 0.35)
+                                  : const Color(0xFFE2E8F0),
+                            ),
+                            boxShadow: _lineFocusNode.hasFocus
+                                ? [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFF1565FF,
+                                      ).withValues(alpha: 0.14),
+                                      blurRadius: 12,
+                                      spreadRadius: 1,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: TextField(
+                            controller: _lineController,
+                            focusNode: _lineFocusNode,
+                            onTap: () {
+                              if (_state.panelMode !=
+                                  SaleBottomPanelMode.none) {
+                                _state.setPanelMode(SaleBottomPanelMode.none);
+                              }
+                            },
+                            onSubmitted: (_) => _addFromInput(),
+                            decoration: InputDecoration(
+                              hintText: 'Nhập tên hàng + giá',
+                              prefixIcon: const Icon(
+                                Icons.search_rounded,
+                                size: 20,
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(999),
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        )
+                      : InkWell(
+                          key: const ValueKey('search-collapsed'),
+                          borderRadius: BorderRadius.circular(999),
+                          onTap: _expandSearchInput,
+                          child: Container(
+                            height: 44,
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(
+                                  Icons.search_rounded,
+                                  size: 18,
+                                  color: Color(0xFF64748B),
+                                ),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Nhập tên hàng + giá',
+                                  style: TextStyle(
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: _voiceBusy
+                    ? null
+                    : (micButtonShowsCancel
+                          ? _cancelVoice
+                          : (hasText ? _addFromInput : _handleVoiceTap)),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: micButtonShowsCancel
+                        ? const Color(0xFFDC2626)
+                        : hasText
+                        ? const Color(0xFF1565FF)
+                        : const Color(0xFFE5EAF2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 140),
+                    transitionBuilder: (child, animation) {
+                      return ScaleTransition(scale: animation, child: child);
+                    },
+                    child: Icon(
+                      key: ValueKey('${hasText}_${_listening}_$_voiceBusy'),
+                      micButtonShowsCancel
+                          ? Icons.close_rounded
+                          : hasText
+                          ? Icons.send_rounded
+                          : (_listening
+                                ? Icons.stop_circle_outlined
+                                : (_voiceBusy
+                                      ? Icons.hourglass_top_rounded
+                                      : Icons.mic_rounded)),
+                      color: (hasText || micButtonShowsCancel)
+                          ? Colors.white
+                          : null,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -642,24 +786,25 @@ class _SaleScreenState extends State<SaleScreen> {
     _state.setPanelMode(SaleBottomPanelMode.none);
   }
 
-  void _addFromInput() {
+  bool _addFromInput({bool showError = true}) {
     final parsed = _orderInputParser.parse(
       _lineController.text,
       findProductPrice: _findProductPrice,
     );
     if (parsed == null) {
-      if (_lineController.text.trim().isNotEmpty) {
+      if (showError && _lineController.text.trim().isNotEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vui long nhap ten san pham.')),
+          const SnackBar(content: Text('Vui lòng nhập tên sản phẩm.')),
         );
       }
-      return;
+      return false;
     }
     _lineController.clear();
     FocusScope.of(context).unfocus();
     _searchExpanded = false;
     _state.setPanelMode(SaleBottomPanelMode.none);
     _state.addToCart(parsed.name, parsed.quantity, parsed.price);
+    return true;
   }
 
   void _expandSearchInput() {
@@ -697,7 +842,7 @@ class _SaleScreenState extends State<SaleScreen> {
 
   Future<void> _pickCustomerName() async {
     final controller = TextEditingController(
-      text: _state.customer == 'Khach hang, phong ban...'
+      text: _state.customer == 'Khách hàng, phòng ban...'
           ? ''
           : _state.customer,
     );
@@ -705,7 +850,7 @@ class _SaleScreenState extends State<SaleScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Nhap ten khach hang'),
+          title: const Text('Nhập tên khách hàng'),
           content: TextField(
             controller: controller,
             decoration: const InputDecoration(
@@ -715,7 +860,7 @@ class _SaleScreenState extends State<SaleScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Huy'),
+              child: const Text('Hủy'),
             ),
             FilledButton(
               onPressed: () {
@@ -725,7 +870,7 @@ class _SaleScreenState extends State<SaleScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF1565FF),
               ),
-              child: const Text('Luu'),
+              child: const Text('Lưu'),
             ),
           ],
         );
@@ -741,13 +886,13 @@ class _SaleScreenState extends State<SaleScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Them hang nhanh'),
+          title: const Text('Thêm hàng nhanh'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
-                decoration: const InputDecoration(labelText: 'Ten san pham'),
+                decoration: const InputDecoration(labelText: 'Tên sản phẩm'),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -760,7 +905,7 @@ class _SaleScreenState extends State<SaleScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Huy'),
+              child: const Text('Hủy'),
             ),
             FilledButton(
               onPressed: () {
@@ -779,7 +924,7 @@ class _SaleScreenState extends State<SaleScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF1565FF),
               ),
-              child: const Text('Them'),
+              child: const Text('Thêm'),
             ),
           ],
         );
@@ -806,6 +951,7 @@ class _SaleScreenState extends State<SaleScreen> {
     });
 
     try {
+      OrderVm? createdOrder;
       if (_isEditMode) {
         await OrderStore.instance.updateOrder(
           orderId: widget.editingOrder!.id,
@@ -813,9 +959,9 @@ class _SaleScreenState extends State<SaleScreen> {
           lines: lines,
         );
       } else {
-        await OrderStore.instance.createOrder(
+        createdOrder = await OrderStore.instance.createOrder(
           customerName: customerName,
-          sellerName: 'Nhan vien ban hang',
+          sellerName: 'Nhân viên bán hàng',
           lines: lines,
         );
       }
@@ -827,17 +973,32 @@ class _SaleScreenState extends State<SaleScreen> {
         SnackBar(
           content: Text(
             _isEditMode
-                ? 'Da cap nhat don - Tong: ${_formatVnd(total)}'
-                : 'Da luu don - Tong: ${_formatVnd(total)}',
+                ? 'Đã cập nhật đơn - Tổng: ${_formatVnd(total)}'
+                : 'Đã tạo đơn - Tổng: ${_formatVnd(total)}',
           ),
         ),
       );
       if (_isEditMode) {
         Navigator.of(context).pop(true);
       } else {
+        final order = createdOrder;
+        if (order != null) {
+          await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => OrderQrPaymentScreen(order: order),
+            ),
+          );
+          if (!mounted) {
+            return;
+          }
+        }
+        if (widget.onOrderSaved != null) {
+          widget.onOrderSaved!.call();
+          return;
+        }
         _state.clearAfterSave();
         _lineController.clear();
-        widget.onOrderSaved?.call();
       }
     } catch (e) {
       if (!mounted) {
@@ -911,19 +1072,19 @@ class _SaleScreenState extends State<SaleScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Xoa mon nhanh'),
-          content: Text('Ban co chac chan muon xoa "${product.name}"?'),
+          title: const Text('Xóa món nhanh'),
+          content: Text('B?n c? ch?c ch?n mu?n x?a "${product.name}"?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Huy'),
+              child: const Text('Hủy'),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(context, true),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFDC2626),
               ),
-              child: const Text('Xoa'),
+              child: const Text('Xóa'),
             ),
           ],
         );
@@ -950,8 +1111,11 @@ class _SaleScreenState extends State<SaleScreen> {
         if (status == 'done' || status == 'notListening') {
           setState(() {
             _voiceBusy = false;
+            _resetSoundLevel();
             if (_state.panelMode == SaleBottomPanelMode.listening) {
-              _voiceHint = 'Da nhan xong, ban co the bam Them.';
+              _voiceHint = _voiceAutoSubmitted
+                  ? 'Đã thêm nhanh vào giỏ.'
+                  : 'Đã nghe xong. Bạn có thể sửa lại nếu cần.';
             }
           });
         }
@@ -1012,7 +1176,7 @@ class _SaleScreenState extends State<SaleScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Khong mo duoc microphone. Kiem tra quyen truy cap.'),
+          content: Text('Không mở được microphone. Kiểm tra quyền truy cập.'),
         ),
       );
       return;
@@ -1029,7 +1193,8 @@ class _SaleScreenState extends State<SaleScreen> {
     _setPanelModeSafely(SaleBottomPanelMode.listening);
     setState(() {
       _voiceBusy = true;
-      _voiceHint = 'Dang bat dau nghe...';
+      _voiceAutoSubmitted = false;
+      _voiceHint = 'Đang bắt đầu nghe...';
     });
 
     try {
@@ -1042,18 +1207,24 @@ class _SaleScreenState extends State<SaleScreen> {
           _lineController.selection = TextSelection.fromPosition(
             TextPosition(offset: _lineController.text.length),
           );
-          setState(() {
-            _voiceHint = finalResult
-                ? 'Da nhan xong, bam Them de them vao gio.'
-                : 'Dang nghe...';
-          });
+          final nextHint = finalResult
+              ? 'Đã nhận xong, đang thêm vào giỏ nếu nhận đúng.'
+              : 'Đang nghe...';
+          if (_voiceHint != nextHint) {
+            setState(() {
+              _voiceHint = nextHint;
+            });
+          }
+          if (finalResult) {
+            unawaited(_handleFinalVoiceResult());
+          }
         },
         onSoundLevel: (level) {
           if (!mounted) return;
-          final normalized = ((level + 2) / 12).clamp(0.0, 1.0);
-          setState(() {
-            _soundLevel = (_soundLevel * 0.7) + (normalized * 0.3);
-          });
+          final normalized = ((level + 4) / 18).clamp(0.0, 1.0);
+          _updateSoundLevel(
+            (_soundLevelNotifier.value * 0.78) + (normalized * 0.22),
+          );
         },
       );
       if (!mounted) {
@@ -1061,8 +1232,8 @@ class _SaleScreenState extends State<SaleScreen> {
       }
       setState(() {
         _voiceBusy = false;
-        _soundLevel = 0;
       });
+      _resetSoundLevel();
     } catch (e) {
       if (!mounted) {
         return;
@@ -1070,9 +1241,9 @@ class _SaleScreenState extends State<SaleScreen> {
       _setPanelModeSafely(SaleBottomPanelMode.none);
       setState(() {
         _voiceBusy = false;
-        _soundLevel = 0;
-        _voiceHint = 'Khong bat dau nghe duoc. Thu lai sau.';
+        _voiceHint = 'Không bắt đầu nghe được. Thử lại sau.';
       });
+      _resetSoundLevel();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
     }
   }
@@ -1087,14 +1258,15 @@ class _SaleScreenState extends State<SaleScreen> {
     }
     setState(() {
       _voiceBusy = false;
-      if (!_listening) {
-        _soundLevel = 0;
-      }
     });
+    if (!_listening) {
+      _resetSoundLevel();
+    }
   }
 
   Future<void> _cancelVoice() async {
     _voiceCancelled = true;
+    _voiceAutoSubmitted = false;
     await _stopListening();
     if (!mounted) {
       return;
@@ -1102,17 +1274,44 @@ class _SaleScreenState extends State<SaleScreen> {
     _lineController.clear();
     _setPanelModeSafely(SaleBottomPanelMode.none);
     setState(() {
-      _voiceHint = 'Da huy nhap giong noi.';
-      _soundLevel = 0;
+      _voiceHint = 'Đã hủy nhập giọng nói.';
     });
+    _resetSoundLevel();
   }
 
-  Future<void> _acceptVoice() async {
+  Future<void> _handleFinalVoiceResult() async {
+    if (_voiceAutoSubmitted) {
+      return;
+    }
+    _voiceAutoSubmitted = true;
     await _stopListening();
     if (!mounted) {
       return;
     }
-    _addFromInput();
+    final added = _addFromInput(showError: false);
+    if (added || !mounted) {
+      return;
+    }
+    _setPanelModeSafely(SaleBottomPanelMode.listening);
+    setState(() {
+      _voiceAutoSubmitted = false;
+      _voiceHint = 'Mình chưa tách được món. Bạn có thể sửa nhanh rồi bấm gửi.';
+    });
+  }
+
+  void _updateSoundLevel(double nextValue) {
+    final clamped = nextValue.clamp(0.0, 1.0);
+    if ((_soundLevelNotifier.value - clamped).abs() < 0.02) {
+      return;
+    }
+    _soundLevelNotifier.value = clamped;
+  }
+
+  void _resetSoundLevel() {
+    if (_soundLevelNotifier.value == 0) {
+      return;
+    }
+    _soundLevelNotifier.value = 0;
   }
 
   String _normalizeSpeechText(String value) {
@@ -1189,7 +1388,7 @@ class _SaleScreenState extends State<SaleScreen> {
                           const SizedBox(width: 10),
                           const Expanded(
                             child: Text(
-                              'Sua mon trong gio',
+                              'Sửa món trong giỏ',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w800,
@@ -1206,8 +1405,8 @@ class _SaleScreenState extends State<SaleScreen> {
                       TextField(
                         controller: nameController,
                         decoration: const InputDecoration(
-                          labelText: 'Ten mon',
-                          hintText: 'Nhap ten mon...',
+                          labelText: 'Tên món',
+                          hintText: 'Nhập tên món...',
                           prefixIcon: Icon(Icons.fastfood_rounded),
                         ),
                       ),
@@ -1217,7 +1416,7 @@ class _SaleScreenState extends State<SaleScreen> {
                         keyboardType: TextInputType.number,
                         onChanged: (_) => setLocalState(() {}),
                         decoration: const InputDecoration(
-                          labelText: 'Don gia',
+                          labelText: 'Đơn giá',
                           hintText: 'VD: 25000 hoac 25k',
                           prefixIcon: Icon(Icons.payments_outlined),
                         ),
@@ -1236,7 +1435,7 @@ class _SaleScreenState extends State<SaleScreen> {
                         child: Row(
                           children: [
                             const Text(
-                              'So luong',
+                              'Số lượng',
                               style: TextStyle(fontWeight: FontWeight.w700),
                             ),
                             const Spacer(),
@@ -1271,8 +1470,8 @@ class _SaleScreenState extends State<SaleScreen> {
                         minLines: 1,
                         maxLines: 3,
                         decoration: const InputDecoration(
-                          labelText: 'Ghi chu',
-                          hintText: 'Them ghi chu cho mon...',
+                          labelText: 'Ghi chú',
+                          hintText: 'Thêm ghi chú cho món...',
                           prefixIcon: Icon(Icons.sticky_note_2_outlined),
                         ),
                       ),
@@ -1288,7 +1487,7 @@ class _SaleScreenState extends State<SaleScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          'Tam tinh: ${_formatVnd(lineTotal)}',
+                          'Tạm tính: ${_formatVnd(lineTotal)}',
                           style: const TextStyle(
                             color: Color(0xFF1D4ED8),
                             fontWeight: FontWeight.w800,
@@ -1311,7 +1510,7 @@ class _SaleScreenState extends State<SaleScreen> {
                           Expanded(
                             child: OutlinedButton(
                               onPressed: () => Navigator.pop(context),
-                              child: const Text('Huy'),
+                              child: const Text('Hủy'),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -1325,13 +1524,13 @@ class _SaleScreenState extends State<SaleScreen> {
                                 if (name.isEmpty) {
                                   setLocalState(() {
                                     inlineError =
-                                        'Ten mon khong duoc de trong.';
+                                        'Tên món không được để trống.';
                                   });
                                   return;
                                 }
                                 if (price == null || price < 0) {
                                   setLocalState(() {
-                                    inlineError = 'Don gia khong hop le.';
+                                    inlineError = 'Đơn giá không hợp lệ.';
                                   });
                                   return;
                                 }
@@ -1347,7 +1546,7 @@ class _SaleScreenState extends State<SaleScreen> {
                               style: FilledButton.styleFrom(
                                 backgroundColor: const Color(0xFF1565FF),
                               ),
-                              child: const Text('Luu thay doi'),
+                              child: const Text('Lưu thay đổi'),
                             ),
                           ),
                         ],
@@ -1393,15 +1592,15 @@ class _SaleScreenState extends State<SaleScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Can cap quyen microphone'),
+          title: const Text('Cần cấp quyền microphone'),
           content: const Text(
-            'Ung dung can quyen micro de nhan dang giong noi. '
-            'Ban co muon mo Cai dat ung dung ngay bay gio khong?',
+            'Ứng dụng cần quyền micro để nhận dạng giọng nói. '
+            'Bạn có muốn mở Cài đặt ứng dụng ngay bây giờ không?',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('De sau'),
+              child: const Text('Để sau'),
             ),
             FilledButton(
               onPressed: () async {
@@ -1411,7 +1610,7 @@ class _SaleScreenState extends State<SaleScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF1565FF),
               ),
-              child: const Text('Mo Cai dat'),
+              child: const Text('Mở Cài đặt'),
             ),
           ],
         );
@@ -1526,8 +1725,42 @@ class _AddQuickItem extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Them hang',
+            'Thêm hàng',
             style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VoiceInfoChip extends StatelessWidget {
+  const _VoiceInfoChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFDCE8FA)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF475569)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF475569),
+            ),
           ),
         ],
       ),
@@ -1565,7 +1798,7 @@ class _SaleGuide extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Don nay ban ban hang gi?',
+              'Đơn này bạn bán hàng gì?',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -1575,7 +1808,7 @@ class _SaleGuide extends StatelessWidget {
             ),
             SizedBox(height: 8),
             Text(
-              'Nhap ten hang hoac doc ten hang de them nhanh vao gio.',
+              'Nhập tên hàng hoặc đọc tên hàng để thêm nhanh vào giỏ.',
               style: TextStyle(color: Color(0xFF6B7280)),
               textAlign: TextAlign.center,
             ),
@@ -1782,7 +2015,7 @@ class _OrderLineCard extends StatelessWidget {
             backgroundColor: const Color(0xFF1565FF),
             foregroundColor: Colors.white,
             icon: Icons.edit_outlined,
-            label: 'Sua',
+            label: 'Sửa',
             borderRadius: BorderRadius.circular(12),
           ),
           SlidableAction(
@@ -1790,7 +2023,7 @@ class _OrderLineCard extends StatelessWidget {
             backgroundColor: const Color(0xFFDC2626),
             foregroundColor: Colors.white,
             icon: Icons.delete_outline_rounded,
-            label: 'Xoa',
+            label: 'Xóa',
             borderRadius: BorderRadius.circular(12),
           ),
         ],
@@ -1872,7 +2105,7 @@ class _OrderLineCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
-                              '$unitPriceText / mon',
+                              '$unitPriceText / món',
                               style: const TextStyle(
                                 fontSize: 11,
                                 color: Color(0xFF1D4ED8),
@@ -1964,7 +2197,7 @@ class _OrderLineCard extends StatelessWidget {
                       ),
                       icon: const Icon(Icons.edit_outlined, size: 17),
                       label: const Text(
-                        'Sua',
+                        'Sửa',
                         style: TextStyle(fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -1982,7 +2215,7 @@ class _OrderLineCard extends StatelessWidget {
                     initialValue: item.note,
                     onChanged: onNoteChanged,
                     decoration: const InputDecoration(
-                      hintText: 'Ghi chu cho mon...',
+                      hintText: 'Ghi chú cho món...',
                       hintStyle: TextStyle(
                         color: Color(0xFF94A3B8),
                         fontSize: 13,

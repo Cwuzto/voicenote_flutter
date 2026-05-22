@@ -152,11 +152,16 @@ class OrderStore extends ChangeNotifier {
       return;
     }
 
+    String? paidByName;
     if (SupabaseBootstrap.isInitialized) {
+      paidByName = await _repo.getCurrentUserName();
       await _repo.markPaid(orderId);
+    } else {
+      paidByName = 'Nhân viên bán hàng';
     }
 
     _orders[idx].status = OrderStatusVm.paid;
+    _orders[idx].paidByName = paidByName;
     notifyListeners();
   }
 

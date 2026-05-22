@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_dialogs.dart';
+import '../../../core/widgets/gradient_background.dart';
 import '../data/dashboard_repository.dart';
 
 class BestSellerScreen extends StatefulWidget {
@@ -20,6 +22,12 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
   bool _loading = true;
   String? _errorMessage;
   List<SoldLineVm> _soldLines = [];
+  String _lastBestSellerQuery = '';
+  String _lastBestSellerTimeFilter = '';
+  String _lastBestSellerSortFilter = '';
+  DateTimeRange? _lastBestSellerCustomRange;
+  List<SoldLineVm>? _lastBestSellerSource;
+  List<_BestSellerRowVm>? _cachedRows;
 
   @override
   void initState() {
@@ -35,17 +43,8 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final rows = _buildRows();
-
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFEFF6FF), Color(0xFFF8FAFC), Color(0xFFE0ECFF)],
-          ),
-        ),
+      body: GradientBackground(
         child: SafeArea(
           child: Column(
             children: [
@@ -74,26 +73,32 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
                   ),
                 ),
               Expanded(
-                child: _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : rows.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'Chua co du lieu ban chay',
-                          style: TextStyle(color: Color(0xFF64748B)),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                        itemCount: rows.length,
-                        itemBuilder: (context, index) {
-                          return _BestSellerCard(
-                            rank: index + 1,
-                            row: rows[index],
-                            sortFilter: _sortFilter,
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _searchController,
+                  builder: (context, value, _) {
+                    final rows = _buildRows(value.text);
+                    return _loading
+                        ? const Center(child: CircularProgressIndicator())
+                        : rows.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Chưa có dữ liệu bán chạy',
+                              style: TextStyle(color: Color(0xFF64748B)),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                            itemCount: rows.length,
+                            itemBuilder: (context, index) {
+                              return _BestSellerCard(
+                                rank: index + 1,
+                                row: rows[index],
+                                sortFilter: _sortFilter,
+                              );
+                            },
                           );
-                        },
-                      ),
+                  },
+                ),
               ),
             ],
           ),
@@ -113,7 +118,7 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
           ),
           const Expanded(
             child: Text(
-              'Hang hoa ban chay',
+              'Hàng hóa bán chạy',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w800,
@@ -152,9 +157,8 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
             child: TextField(
               controller: _searchController,
               autofocus: true,
-              onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                hintText: 'Tim theo hang hoa',
+                hintText: 'Tìm theo hàng hóa',
                 filled: true,
                 fillColor: Colors.white,
                 contentPadding: const EdgeInsets.symmetric(
@@ -174,11 +178,12 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
               setState(() {
                 _searchMode = false;
                 _searchController.clear();
+                _invalidateRowsCache();
               });
               FocusScope.of(context).unfocus();
             },
             child: const Text(
-              'Huy',
+              'Hủy',
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF1565FF),
@@ -203,8 +208,19 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
     );
   }
 
-  List<_BestSellerRowVm> _buildRows() {
-    final query = _searchController.text.trim().toLowerCase();
+  List<_BestSellerRowVm> _buildRows(String queryText) {
+    final query = queryText.trim().toLowerCase();
+    final canReuse =
+        identical(_lastBestSellerSource, _soldLines) &&
+        _lastBestSellerQuery == query &&
+        _lastBestSellerTimeFilter == _timeFilter &&
+        _lastBestSellerSortFilter == _sortFilter &&
+        _sameRange(_lastBestSellerCustomRange, _customRange) &&
+        _cachedRows != null;
+    if (canReuse) {
+      return _cachedRows!;
+    }
+
     final source = _soldLines.where((item) => _matchTime(item.soldAt));
     final map = <String, _BestSellerRowVm>{};
 
@@ -236,7 +252,28 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
       return b.quantity.compareTo(a.quantity);
     });
 
+    _lastBestSellerSource = _soldLines;
+    _lastBestSellerQuery = query;
+    _lastBestSellerTimeFilter = _timeFilter;
+    _lastBestSellerSortFilter = _sortFilter;
+    _lastBestSellerCustomRange = _customRange;
+    _cachedRows = rows;
     return rows;
+  }
+
+  bool _sameRange(DateTimeRange? a, DateTimeRange? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return a == b;
+    return a.start == b.start && a.end == b.end;
+  }
+
+  void _invalidateRowsCache() {
+    _lastBestSellerSource = null;
+    _lastBestSellerQuery = '';
+    _lastBestSellerTimeFilter = '';
+    _lastBestSellerSortFilter = '';
+    _lastBestSellerCustomRange = null;
+    _cachedRows = null;
   }
 
   bool _matchTime(DateTime value) {
@@ -291,80 +328,87 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
   }
 
   Future<void> _pickSortFilter() async {
-    final result = await showModalBottomSheet<String>(
+    final result = await showAppOptionSheet<String>(
       context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _SheetTile(
-                label: 'Theo so luong',
-                onTap: () => Navigator.pop(context, 'QUANTITY'),
-              ),
-              _SheetTile(
-                label: 'Theo doanh thu',
-                onTap: () => Navigator.pop(context, 'REVENUE'),
-              ),
-            ],
-          ),
-        );
-      },
+      title: 'Sắp xếp danh sách',
+      actions: [
+        AppSheetAction(
+          label: 'Theo số lượng',
+          value: 'QUANTITY',
+          selected: _sortFilter == 'QUANTITY',
+          icon: Icons.format_list_numbered_rounded,
+        ),
+        AppSheetAction(
+          label: 'Theo doanh thu',
+          value: 'REVENUE',
+          selected: _sortFilter == 'REVENUE',
+          icon: Icons.payments_outlined,
+        ),
+      ],
     );
 
     if (result != null) {
       setState(() {
         _sortFilter = result;
+        _invalidateRowsCache();
       });
     }
   }
 
   Future<void> _pickTimeFilter() async {
-    final result = await showModalBottomSheet<String>(
+    final result = await showAppOptionSheet<String>(
       context: context,
-      showDragHandle: true,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _SheetTile(
-                label: 'Toan thoi gian',
-                onTap: () => Navigator.pop(context, 'ALL'),
-              ),
-              _SheetTile(
-                label: 'Hom nay',
-                onTap: () => Navigator.pop(context, 'TODAY'),
-              ),
-              _SheetTile(
-                label: 'Hom qua',
-                onTap: () => Navigator.pop(context, 'YESTERDAY'),
-              ),
-              _SheetTile(
-                label: '7 ngay qua',
-                onTap: () => Navigator.pop(context, '7DAYS'),
-              ),
-              _SheetTile(
-                label: 'Thang nay',
-                onTap: () => Navigator.pop(context, 'THIS_MONTH'),
-              ),
-              _SheetTile(
-                label: 'Thang truoc',
-                onTap: () => Navigator.pop(context, 'LAST_MONTH'),
-              ),
-              _SheetTile(
-                label: 'Nam nay',
-                onTap: () => Navigator.pop(context, 'THIS_YEAR'),
-              ),
-              _SheetTile(
-                label: 'Tuy chinh',
-                onTap: () => Navigator.pop(context, 'CUSTOM'),
-              ),
-            ],
-          ),
-        );
-      },
+      title: 'Chọn thời gian',
+      actions: [
+        AppSheetAction(
+          label: 'Toàn thời gian',
+          value: 'ALL',
+          selected: _timeFilter == 'ALL' && _customRange == null,
+          icon: Icons.all_inclusive_rounded,
+        ),
+        AppSheetAction(
+          label: 'Hôm nay',
+          value: 'TODAY',
+          selected: _timeFilter == 'TODAY',
+          icon: Icons.today_rounded,
+        ),
+        AppSheetAction(
+          label: 'Hôm qua',
+          value: 'YESTERDAY',
+          selected: _timeFilter == 'YESTERDAY',
+          icon: Icons.history_toggle_off_rounded,
+        ),
+        AppSheetAction(
+          label: '7 ngày qua',
+          value: '7DAYS',
+          selected: _timeFilter == '7DAYS',
+          icon: Icons.date_range_rounded,
+        ),
+        AppSheetAction(
+          label: 'Tháng nay',
+          value: 'THIS_MONTH',
+          selected: _timeFilter == 'THIS_MONTH',
+          icon: Icons.calendar_month_rounded,
+        ),
+        AppSheetAction(
+          label: 'Tháng trước',
+          value: 'LAST_MONTH',
+          selected: _timeFilter == 'LAST_MONTH',
+          icon: Icons.event_repeat_rounded,
+        ),
+        AppSheetAction(
+          label: 'Năm nay',
+          value: 'THIS_YEAR',
+          selected: _timeFilter == 'THIS_YEAR',
+          icon: Icons.event_note_rounded,
+        ),
+        AppSheetAction(
+          label: 'Tùy chỉnh',
+          value: 'CUSTOM',
+          selected: _timeFilter == 'CUSTOM' && _customRange != null,
+          icon: Icons.tune_rounded,
+        ),
+      ],
     );
 
     if (!mounted || result == null) {
@@ -383,6 +427,7 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
       setState(() {
         _customRange = range;
         _timeFilter = 'CUSTOM';
+        _invalidateRowsCache();
       });
       return;
     }
@@ -390,6 +435,7 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
     setState(() {
       _customRange = null;
       _timeFilter = result;
+      _invalidateRowsCache();
     });
   }
 
@@ -400,26 +446,26 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
 
     switch (_timeFilter) {
       case 'ALL':
-        return 'Toan thoi gian';
+        return 'Toàn thời gian';
       case 'TODAY':
-        return 'Hom nay';
+        return 'Hôm nay';
       case 'YESTERDAY':
-        return 'Hom qua';
+        return 'Hôm qua';
       case '7DAYS':
-        return '7 ngay qua';
+        return '7 ngày qua';
       case 'THIS_MONTH':
-        return 'Thang nay';
+        return 'Tháng nay';
       case 'LAST_MONTH':
-        return 'Thang truoc';
+        return 'Tháng trước';
       case 'THIS_YEAR':
-        return 'Nam nay';
+        return 'Năm nay';
       default:
-        return 'Thang nay';
+        return 'Tháng nay';
     }
   }
 
   String _sortFilterLabel() {
-    return _sortFilter == 'REVENUE' ? 'Theo doanh thu' : 'Theo so luong';
+    return _sortFilter == 'REVENUE' ? 'Theo doanh thu' : 'Theo số lượng';
   }
 
   String _ddmm(DateTime dt) {
@@ -440,6 +486,7 @@ class _BestSellerScreenState extends State<BestSellerScreen> {
       }
       setState(() {
         _soldLines = soldLines;
+        _invalidateRowsCache();
       });
     } catch (e) {
       if (!mounted) {
@@ -492,18 +539,6 @@ class _FilterChipButton extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _SheetTile extends StatelessWidget {
-  const _SheetTile({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(title: Text(label), onTap: onTap);
   }
 }
 

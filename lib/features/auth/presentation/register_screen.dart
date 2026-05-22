@@ -42,7 +42,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text(
-                      'Tao tai khoan',
+                      'Tạo tài khoản',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 30,
@@ -51,11 +51,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: 28),
-                    const Text('Ten cua ban'),
+                    const Text('Tên của bạn'),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _fullNameController,
-                      decoration: _inputDecoration('Vi du: Nguyen Van A'),
+                      decoration: _inputDecoration('Ví dụ: Nguyễn Văn A'),
                     ),
                     const SizedBox(height: 14),
                     const Text('Email'),
@@ -64,23 +64,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       autocorrect: false,
-                      decoration: _inputDecoration('Vi du: ban@domain.com'),
+                      decoration: _inputDecoration('Ví dụ: ban@domain.com'),
                     ),
                     const SizedBox(height: 14),
-                    const Text('Mat khau'),
+                    const Text('Mật khẩu'),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _passwordController,
                       obscureText: true,
-                      decoration: _inputDecoration('Tao mat khau'),
+                      decoration: _inputDecoration('Tạo mật khẩu'),
                     ),
                     const SizedBox(height: 14),
-                    const Text('Xac nhan mat khau'),
+                    const Text('Xác nhận mật khẩu'),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _confirmPasswordController,
                       obscureText: true,
-                      decoration: _inputDecoration('Nhap lai mat khau'),
+                      decoration: _inputDecoration('Nhập lại mật khẩu'),
                     ),
                     const SizedBox(height: 22),
                     FilledButton(
@@ -99,7 +99,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                             )
                           : const Text(
-                              'Dang ky',
+                              'Đăng ký',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
@@ -109,7 +109,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 10),
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Da co tai khoan? Dang nhap'),
+                      child: const Text('Đã có tài khoản? Đăng nhập'),
                     ),
                   ],
                 ),
@@ -128,19 +128,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final confirmPassword = _confirmPasswordController.text;
 
     if (fullName.isEmpty || email.isEmpty || password.isEmpty) {
-      _showMessage('Vui long nhap day du thong tin');
+      _showMessage('Vui lòng nhập đầy đủ thông tin');
       return;
     }
     if (!email.contains('@')) {
-      _showMessage('Email khong hop le');
+      _showMessage('Email không hợp lệ');
       return;
     }
     if (!SupabaseBootstrap.isConfigured) {
-      _showMessage('Chua cau hinh SUPABASE_URL va SUPABASE_ANON_KEY');
+      _showMessage('Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY');
       return;
     }
     if (password != confirmPassword) {
-      _showMessage('Mat khau xac nhan khong khop');
+      _showMessage('Mật khẩu xác nhận không khớp');
       return;
     }
 
@@ -189,6 +189,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

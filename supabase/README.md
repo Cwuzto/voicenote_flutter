@@ -5,6 +5,10 @@ Run in order from Supabase SQL Editor:
 2. `supabase/sql/002_rls.sql`
 3. `supabase/sql/003_seed_demo.sql` (edit username first)
 
+For the current Bao grocery demo reset / reseed flow, use:
+- `supabase/sql/008_reseed_bao_grocery_demo.sql`
+- Guide: `supabase/DEMO_SEED.md`
+
 ## Important
 - In app code, keep env keys as:
   - `SUPABASE_URL`

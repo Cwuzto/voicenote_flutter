@@ -41,7 +41,7 @@ class ProfileStoreRepository {
   Future<ProfileVm> fetchProfile() async {
     final currentUser = _supabase.auth.currentUser;
     if (currentUser == null) {
-      throw const ProfileFlowException('Phien dang nhap het han.');
+      throw const ProfileFlowException('Phiên đăng nhập hết hạn.');
     }
     final userRow = await _supabase
         .from('users')
@@ -73,7 +73,7 @@ class ProfileStoreRepository {
   }) async {
     final currentUser = _supabase.auth.currentUser;
     if (currentUser == null) {
-      throw const ProfileFlowException('Phien dang nhap het han.');
+      throw const ProfileFlowException('Phiên đăng nhập hết hạn.');
     }
 
     await _supabase
@@ -92,11 +92,11 @@ class ProfileStoreRepository {
       final currentEmail = (_supabase.auth.currentUser?.email ?? '').trim();
       final oldPass = oldPassword?.trim() ?? '';
       if (oldPass.isEmpty) {
-        throw const ProfileFlowException('Vui long nhap mat khau cu.');
+        throw const ProfileFlowException('Vui lòng nhập mật khẩu cũ.');
       }
       if (currentEmail.isEmpty) {
         throw const ProfileFlowException(
-          'Khong tim thay email de xac minh mat khau cu.',
+          'Không tìm thấy email để xác minh mật khẩu cũ.',
         );
       }
       try {
@@ -105,10 +105,12 @@ class ProfileStoreRepository {
           password: oldPass,
         );
       } on AuthException {
-        throw const ProfileFlowException('Mat khau cu khong dung.');
+        throw const ProfileFlowException('Mật khẩu cũ không đúng.');
       }
       if (password.length < 6) {
-        throw const ProfileFlowException('Mat khau moi phai co it nhat 6 ky tu.');
+        throw const ProfileFlowException(
+          'Mật khẩu mới phải có ít nhất 6 ký tự.',
+        );
       }
       await _supabase.auth.updateUser(UserAttributes(password: password));
     }
@@ -122,7 +124,7 @@ class ProfileStoreRepository {
         .eq('id', storeId)
         .single();
     final ownerId = (store['owner_id'] ?? '').toString();
-    String ownerName = 'Chu cua hang';
+    String ownerName = 'Chủ cửa hàng';
     if (ownerId.isNotEmpty) {
       final owner = await _supabase
           .from('users')
@@ -156,7 +158,7 @@ class ProfileStoreRepository {
   Future<String> _resolveStoreId() async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
-      throw const ProfileFlowException('Phien dang nhap het han.');
+      throw const ProfileFlowException('Phiên đăng nhập hết hạn.');
     }
 
     final ownerStore = await _supabase
@@ -181,7 +183,9 @@ class ProfileStoreRepository {
       return employeeRow['store_id'].toString();
     }
 
-    throw const ProfileFlowException('Chua tim thay cua hang cua tai khoan nay.');
+    throw const ProfileFlowException(
+      'Chưa tìm thấy cửa hàng của tài khoản này.',
+    );
   }
 }
 

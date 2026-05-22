@@ -15,7 +15,21 @@ class OrderRepository {
 
     final ordersData = await _client
         .from('orders')
-        .select('id, seller_id, customer_name, status, created_at')
+        .select('''
+          id,
+          seller_id,
+          paid_by_user_id,
+          customer_name,
+          status,
+          created_at,
+          order_items(
+            product_name,
+            quantity,
+            unit_price,
+            note,
+            created_at
+          )
+          ''')
         .eq('store_id', storeId)
         .order('created_at', ascending: false);
 
@@ -24,69 +38,81 @@ class OrderRepository {
       return [];
     }
 
-    final orderIds = orders.map((e) => e['id'].toString()).toList();
     final sellerIds = orders
         .map((e) => e['seller_id'])
         .whereType<String>()
-        .toSet()
-        .toList();
+        .toSet();
+    final paidByUserIds = orders
+        .map((e) => e['paid_by_user_id'])
+        .whereType<String>()
+        .toSet();
+    final userIds = {...sellerIds, ...paidByUserIds}.toList();
 
-    final itemsData = await _client
-        .from('order_items')
-        .select('order_id, product_name, quantity, unit_price, note')
-        .inFilter('order_id', orderIds)
-        .order('created_at', ascending: true);
-    final itemsByOrderId = <String, List<OrderLineVm>>{};
-    for (final raw in List<Map<String, dynamic>>.from(itemsData)) {
-      final orderId = raw['order_id'].toString();
-      itemsByOrderId
-          .putIfAbsent(orderId, () => [])
-          .add(
-            OrderLineVm(
-              name: (raw['product_name'] ?? '').toString(),
-              quantity: (raw['quantity'] as num?)?.toInt() ?? 0,
-              unitPrice: (raw['unit_price'] as num?)?.toInt() ?? 0,
-              note: (raw['note'] as String?)?.trim().isEmpty ?? true
-                  ? null
-                  : raw['note'] as String,
-            ),
-          );
-    }
-
-    final sellerNames = <String, String>{};
-    if (sellerIds.isNotEmpty) {
+    final userNames = <String, String>{};
+    if (userIds.isNotEmpty) {
       final usersData = await _client
           .from('users')
           .select('id, full_name')
-          .inFilter('id', sellerIds);
+          .inFilter('id', userIds);
       for (final raw in List<Map<String, dynamic>>.from(usersData)) {
         final id = raw['id']?.toString();
         if (id == null || id.isEmpty) {
           continue;
         }
-        sellerNames[id] = (raw['full_name'] ?? '').toString();
+        userNames[id] = (raw['full_name'] ?? '').toString();
       }
     }
 
     return orders.map((raw) {
-      final id = raw['id'].toString();
       final sellerId = (raw['seller_id'] ?? '').toString();
+      final paidByUserId = (raw['paid_by_user_id'] ?? '').toString();
       final createdAt = DateTime.tryParse((raw['created_at'] ?? '').toString());
       final status = (raw['status'] ?? '').toString().toUpperCase() == 'PAID'
           ? OrderStatusVm.paid
           : OrderStatusVm.unpaid;
 
+      final rawItems = List<Map<String, dynamic>>.from(
+        raw['order_items'] as List? ?? const [],
+      );
+      rawItems.sort((a, b) {
+        final left = DateTime.tryParse((a['created_at'] ?? '').toString());
+        final right = DateTime.tryParse((b['created_at'] ?? '').toString());
+        if (left == null && right == null) {
+          return 0;
+        }
+        if (left == null) {
+          return -1;
+        }
+        if (right == null) {
+          return 1;
+        }
+        return left.compareTo(right);
+      });
+
       return OrderVm(
-        id: id,
+        id: raw['id'].toString(),
         customerName: ((raw['customer_name'] ?? '').toString().trim()).isEmpty
             ? 'Khach le'
             : raw['customer_name'].toString(),
-        sellerName: (sellerNames[sellerId]?.trim().isNotEmpty ?? false)
-            ? sellerNames[sellerId]!
+        sellerName: (userNames[sellerId]?.trim().isNotEmpty ?? false)
+            ? userNames[sellerId]!
             : 'Nhan vien ban hang',
+        paidByUserId: paidByUserId.isEmpty ? null : paidByUserId,
+        paidByName: (userNames[paidByUserId]?.trim().isNotEmpty ?? false)
+            ? userNames[paidByUserId]!
+            : null,
         createdAt: createdAt ?? DateTime.now(),
         status: status,
-        lines: itemsByOrderId[id] ?? const [],
+        lines: rawItems.map((item) {
+          return OrderLineVm(
+            name: (item['product_name'] ?? '').toString(),
+            quantity: (item['quantity'] as num?)?.toInt() ?? 0,
+            unitPrice: (item['unit_price'] as num?)?.toInt() ?? 0,
+            note: (item['note'] as String?)?.trim().isEmpty ?? true
+                ? null
+                : item['note'] as String,
+          );
+        }).toList(),
       );
     }).toList();
   }
@@ -143,7 +169,6 @@ class OrderRepository {
                 .toList(),
           );
     } catch (e) {
-      // Avoid orphaned orders when item insert fails.
       await _client.from('orders').delete().eq('id', orderId);
       rethrow;
     }
@@ -161,10 +186,32 @@ class OrderRepository {
     );
   }
 
+  Future<String?> getCurrentUserName() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      return null;
+    }
+
+    final row = await _client
+        .from('users')
+        .select('full_name')
+        .eq('id', userId)
+        .maybeSingle();
+    final name = (row?['full_name'] ?? '').toString().trim();
+    return name.isEmpty ? null : name;
+  }
+
   Future<void> markPaid(String orderId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) {
+      throw const OrderFlowException(
+        'Phien dang nhap het han. Vui long dang nhap lai.',
+      );
+    }
+
     await _client
         .from('orders')
-        .update({'status': 'PAID'})
+        .update({'status': 'PAID', 'paid_by_user_id': userId})
         .eq('id', orderId)
         .eq('status', 'UNPAID');
   }

@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/app_dialogs.dart';
+import '../../../core/widgets/gradient_background.dart';
 import '../data/employee_repository.dart';
 
 class EmployeeListScreen extends StatefulWidget {
@@ -26,24 +28,18 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton(
         onPressed: _addEmployee,
         backgroundColor: const Color(0xFF1565FF),
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFEFF6FF), Color(0xFFF8FAFC), Color(0xFFE0ECFF)],
-          ),
-        ),
+      body: GradientBackground(
         child: SafeArea(
           child: Column(
             children: [
               _Header(
-                title: 'Quan ly nhan vien',
+                title: 'Quản lý nhân viên',
                 onBack: () => Navigator.pop(context),
               ),
               if (_errorMessage != null)
@@ -76,7 +72,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
     if (_employees.isEmpty) {
       return const Center(
         child: Text(
-          'Chua co nhan vien nao',
+          'Chưa có nhân viên nào',
           style: TextStyle(color: Color(0xFF6B7280)),
         ),
       );
@@ -140,7 +136,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: const Text(
-                              'Vo hieu hoa',
+                              'Vô hiệu hóa',
                               style: TextStyle(
                                 color: Color(0xFFB91C1C),
                                 fontSize: 12,
@@ -160,12 +156,12 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
               PopupMenuButton<String>(
                 onSelected: (action) => _handleAction(action, item),
                 itemBuilder: (context) => [
-                  const PopupMenuItem(value: 'edit', child: Text('Sua')),
+                  const PopupMenuItem(value: 'edit', child: Text('Sửa')),
                   PopupMenuItem(
                     value: 'toggle',
-                    child: Text(item.isActive ? 'Vo hieu hoa' : 'Kich hoat'),
+                    child: Text(item.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'),
                   ),
-                  const PopupMenuItem(value: 'delete', child: Text('Xoa')),
+                  const PopupMenuItem(value: 'delete', child: Text('Xóa')),
                 ],
                 child: const Icon(Icons.more_vert_rounded),
               ),
@@ -221,7 +217,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
         setState(() {
           _employees.removeWhere((e) => e.employeeId == item.employeeId);
         });
-        _showMessage('Da xoa');
+        _showMessage('Đã xóa');
       } catch (e) {
         _showMessage(e.toString());
       }
@@ -246,7 +242,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
             _employees[index] = updated;
           }
         });
-        _showMessage(updated.isActive ? 'Da kich hoat' : 'Da vo hieu hoa');
+        _showMessage(updated.isActive ? 'Đã kích hoạt' : 'Đã vô hiệu hóa');
       } catch (e) {
         _showMessage(e.toString());
       }
@@ -272,7 +268,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
       setState(() {
         _employees.insert(0, created);
       });
-      _showMessage('Da them');
+      _showMessage('Đã thêm');
     } catch (e) {
       _showMessage(e.toString());
     }
@@ -300,7 +296,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
           _employees[index] = updated;
         }
       });
-      _showMessage('Da cap nhat');
+      _showMessage('Đã cập nhật');
     } catch (e) {
       _showMessage(e.toString());
     }
@@ -318,13 +314,14 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
         return StatefulBuilder(
           builder: (dialogContext, setDialogState) {
             return AlertDialog(
-              title: Text(isEdit ? 'Sua nhan vien' : 'Them nhan vien'),
+              scrollable: true,
+              title: Text(isEdit ? 'Sửa nhân viên' : 'Thêm nhân viên'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: nameController,
-                    decoration: const InputDecoration(labelText: 'Ho ten'),
+                    decoration: const InputDecoration(labelText: 'Họ tên'),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -335,7 +332,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Text('Kich hoat'),
+                      const Text('Kích hoạt'),
                       const Spacer(),
                       Switch(
                         value: isActive,
@@ -351,7 +348,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                     const Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Luu y: Email phai ton tai san trong he thong.',
+                        'Lưu ý: Email phải tồn tại sẵn trong hệ thống.',
                         style: TextStyle(
                           fontSize: 12,
                           color: Color(0xFF6B7280),
@@ -363,7 +360,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('Huy'),
+                  child: const Text('Hủy'),
                 ),
                 FilledButton(
                   onPressed: () {
@@ -372,7 +369,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                     if (name.isEmpty || email.isEmpty || !email.contains('@')) {
                       ScaffoldMessenger.of(dialogContext).showSnackBar(
                         const SnackBar(
-                          content: Text('Vui long nhap day du thong tin'),
+                          content: Text('Vui lòng nhập đầy đủ thông tin'),
                         ),
                       );
                       return;
@@ -389,7 +386,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF1565FF),
                   ),
-                  child: const Text('Luu'),
+                  child: const Text('Lưu'),
                 ),
               ],
             );
@@ -400,29 +397,14 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
   }
 
   Future<bool> _confirmDelete(String name) async {
-    final result = await showDialog<bool>(
+    final result = await showAppConfirmDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Xoa nhan vien'),
-          content: Text('Ban co chac muon xoa $name?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Huy'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFDC2626),
-              ),
-              child: const Text('Xoa'),
-            ),
-          ],
-        );
-      },
+      title: 'Xóa nhân viên',
+      message: 'Bạn có chắc muốn xóa $name?',
+      confirmLabel: 'Xóa',
+      destructive: true,
     );
-    return result == true;
+    return result;
   }
 
   String _initials(String name) {
@@ -483,4 +465,3 @@ class _Header extends StatelessWidget {
     );
   }
 }
-

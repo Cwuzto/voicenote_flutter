@@ -42,7 +42,7 @@ class _OrderEditScreenState extends State<OrderEditScreen> {
     final total = _lines.fold<int>(0, (sum, item) => sum + item.lineTotal);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sua hoa don')),
+      appBar: AppBar(title: const Text('Sửa hóa đơn')),
       body: Column(
         children: [
           Padding(
@@ -59,7 +59,7 @@ class _OrderEditScreenState extends State<OrderEditScreen> {
                       )
                     : const Icon(Icons.add_shopping_cart_rounded),
                 label: Text(
-                  _loadingProducts ? 'Dang tai danh sach mon...' : 'Them mon',
+                  _loadingProducts ? 'Đang tải danh sách món...' : 'Thêm món',
                 ),
               ),
             ),
@@ -69,7 +69,7 @@ class _OrderEditScreenState extends State<OrderEditScreen> {
             child: TextField(
               controller: _customerController,
               decoration: InputDecoration(
-                labelText: 'Ten khach hang',
+                labelText: 'Tên khách hàng',
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
@@ -138,7 +138,7 @@ class _OrderEditScreenState extends State<OrderEditScreen> {
                               Icons.delete_outline_rounded,
                               color: Color(0xFFDC2626),
                             ),
-                            tooltip: 'Xoa mon',
+                            tooltip: 'Xóa món',
                           ),
                           const Spacer(),
                           Text(
@@ -159,7 +159,7 @@ class _OrderEditScreenState extends State<OrderEditScreen> {
                           );
                         },
                         decoration: const InputDecoration(
-                          hintText: 'Ghi chu...',
+                          hintText: 'Ghi chú...',
                           isDense: true,
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.zero,
@@ -181,7 +181,7 @@ class _OrderEditScreenState extends State<OrderEditScreen> {
               children: [
                 const Expanded(
                   child: Text(
-                    'Tong cong',
+                    'Tổng cộng',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -200,7 +200,7 @@ class _OrderEditScreenState extends State<OrderEditScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFF1565FF),
         onPressed: _saving ? null : _save,
-        label: _saving ? const Text('Dang luu...') : const Text('Luu'),
+        label: _saving ? const Text('Đang lưu...') : const Text('Lưu'),
         icon: _saving
             ? const SizedBox(
                 width: 16,
@@ -235,7 +235,7 @@ class _OrderEditScreenState extends State<OrderEditScreen> {
 
   Future<void> _save() async {
     final customerName = _customerController.text.trim().isEmpty
-        ? 'Khach le'
+        ? 'Khách lẻ'
         : _customerController.text.trim();
 
     setState(() {
@@ -293,7 +293,7 @@ class _OrderEditScreenState extends State<OrderEditScreen> {
   Future<void> _openAddItemPicker() async {
     if (_products.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Chua co san pham de them.')),
+        const SnackBar(content: Text('Chưa có sản phẩm để thêm.')),
       );
       return;
     }
@@ -324,7 +324,7 @@ class _OrderEditScreenState extends State<OrderEditScreen> {
                   children: [
                     TextField(
                       decoration: const InputDecoration(
-                        hintText: 'Tim san pham...',
+                        hintText: 'Tìm sản phẩm...',
                         prefixIcon: Icon(Icons.search_rounded),
                       ),
                       onChanged: (value) {
@@ -372,7 +372,11 @@ class _OrderEditScreenState extends State<OrderEditScreen> {
         _lines[existingIndex] = line.copyWith(quantity: line.quantity + 1);
       } else {
         _lines.add(
-          OrderLineVm(name: selected.name, quantity: 1, unitPrice: selected.price),
+          OrderLineVm(
+            name: selected.name,
+            quantity: 1,
+            unitPrice: selected.price,
+          ),
         );
       }
     });

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/gradient_background.dart';
 import '../data/profile_store_repository.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -12,7 +13,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _repository = ProfileStoreRepository();
   final _fullName = TextEditingController();
-    final _phone = TextEditingController();
+  final _phone = TextEditingController();
   final _email = TextEditingController();
   final _oldPass = TextEditingController();
   final _newPass = TextEditingController();
@@ -20,6 +21,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loading = true;
   bool _saving = false;
   String? _errorMessage;
+  String? _successMessage;
+  String _initialFullName = '';
+  String _initialPhone = '';
+
+  bool get _hasProfileChanges =>
+      _fullName.text.trim() != _initialFullName ||
+      _phone.text.trim() != _initialPhone;
+
+  bool get _hasPasswordChanges =>
+      _oldPass.text.isNotEmpty || _newPass.text.isNotEmpty;
+
+  bool get _canSave =>
+      !_saving &&
+      (_hasProfileChanges ||
+          (_oldPass.text.isNotEmpty && _newPass.text.trim().length >= 6));
 
   @override
   void initState() {
@@ -30,7 +46,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     _fullName.dispose();
-        _phone.dispose();
+    _phone.dispose();
     _email.dispose();
     _oldPass.dispose();
     _newPass.dispose();
@@ -40,33 +56,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFEFF6FF), Color(0xFFF8FAFC), Color(0xFFE0ECFF)],
-          ),
-        ),
+      body: GradientBackground(
         child: SafeArea(
           child: Column(
             children: [
               _TopBar(
-                title: 'Thong tin ca nhan',
-                actionLabel: 'Luu',
+                title: 'Thông tin cá nhân',
+                actionLabel: 'Lưu',
                 onBack: () => Navigator.pop(context),
-                onAction: _saving ? null : _saveProfile,
+                onAction: _canSave ? _saveProfile : null,
                 loading: _saving,
               ),
+              if (_successMessage != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: _InlineStatusCard(
+                    message: _successMessage!,
+                    backgroundColor: const Color(0xFFE8FFF1),
+                    foregroundColor: const Color(0xFF166534),
+                    icon: Icons.check_circle_rounded,
+                  ),
+                ),
               if (_errorMessage != null)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: _InlineStatusCard(
+                    message: _errorMessage!,
+                    backgroundColor: const Color(0xFFFFECEC),
+                    foregroundColor: const Color(0xFFB91C1C),
+                    icon: Icons.error_outline_rounded,
+                  ),
+                ),
+              if (!_loading)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(
-                        color: Color(0xFFB91C1C),
+                      _hasProfileChanges || _hasPasswordChanges
+                          ? 'Bạn có thay đổi chưa lưu.'
+                          : 'Thông tin đang đồng bộ.',
+                      style: TextStyle(
+                        color: _hasProfileChanges || _hasPasswordChanges
+                            ? const Color(0xFFB45309)
+                            : const Color(0xFF64748B),
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -97,30 +130,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            _label('Ten cua ban'),
-                            _field(_fullName),                            _label('So dien thoai', top: 12),
-                            _field(_phone),
+                            _label('Tên của bạn'),
+                            _field(
+                              _fullName,
+                              hint: 'Nhập tên hiển thị',
+                              onChanged: (_) => _handleDraftChanged(),
+                            ),
+                            _label('Số điện thoại', top: 12),
+                            _field(
+                              _phone,
+                              hint: 'Cập nhật số điện thoại',
+                              keyboardType: TextInputType.phone,
+                              onChanged: (_) => _handleDraftChanged(),
+                            ),
                             _label('Email', top: 12),
                             _field(_email, enabled: false),
                             const SizedBox(height: 6),
                             const Text(
-                              'Doi mat khau',
+                              'Đổi mật khẩu',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                            _label('Mat khau cu', top: 8),
+                            _label('Mật khẩu cũ', top: 8),
                             _field(
                               _oldPass,
-                              hint: 'Nhap mat khau cu de doi mat khau',
+                              hint: 'Nhập mật khẩu cũ',
                               obscure: true,
+                              onChanged: (_) => _handleDraftChanged(),
                             ),
-                            _label('Mat khau moi', top: 12),
+                            _label('Mật khẩu mới', top: 12),
                             _field(
                               _newPass,
-                              hint: 'Nhap mat khau moi (it nhat 6 ky tu)',
+                              hint: 'Nhập mật khẩu mới (ít nhất 6 ký tự)',
                               obscure: true,
+                              onChanged: (_) => _handleDraftChanged(),
                             ),
                           ],
                         ),
@@ -143,8 +188,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!mounted) {
         return;
       }
-      _fullName.text = data.fullName;      _phone.text = data.phone;
+      _fullName.text = data.fullName;
+      _phone.text = data.phone;
       _email.text = data.email;
+      _initialFullName = data.fullName.trim();
+      _initialPhone = data.phone.trim();
     } catch (e) {
       if (!mounted) {
         return;
@@ -162,9 +210,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _saveProfile() async {
+    if (!_canSave) {
+      return;
+    }
+    FocusScope.of(context).unfocus();
     setState(() {
       _saving = true;
       _errorMessage = null;
+      _successMessage = null;
     });
     try {
       await _repository.updateProfile(
@@ -178,8 +231,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
       _oldPass.clear();
       _newPass.clear();
+      _initialFullName = _fullName.text.trim();
+      _initialPhone = _phone.text.trim();
+      setState(() {
+        _successMessage = 'Đã lưu thông tin cá nhân.';
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Da luu thong tin ca nhan.')),
+        const SnackBar(content: Text('Đã lưu thông tin cá nhân.')),
       );
     } catch (e) {
       if (!mounted) {
@@ -197,6 +255,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  void _handleDraftChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _successMessage = null;
+      _errorMessage = null;
+    });
+  }
+
   static Widget _label(String text, {double top = 0}) {
     return Padding(
       padding: EdgeInsets.only(top: top, bottom: 4),
@@ -209,11 +277,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     String? hint,
     bool enabled = true,
     bool obscure = false,
+    TextInputType? keyboardType,
+    ValueChanged<String>? onChanged,
   }) {
     return TextField(
       controller: controller,
       enabled: enabled,
       obscureText: obscure,
+      keyboardType: keyboardType,
+      onChanged: onChanged,
       decoration: InputDecoration(
         hintText: hint,
         filled: true,
@@ -288,3 +360,44 @@ class _TopBar extends StatelessWidget {
   }
 }
 
+class _InlineStatusCard extends StatelessWidget {
+  const _InlineStatusCard({
+    required this.message,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.icon,
+  });
+
+  final String message;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: foregroundColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: foregroundColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

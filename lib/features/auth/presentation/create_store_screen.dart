@@ -29,12 +29,12 @@ class _CreateStoreScreenState extends State<CreateStoreScreen> {
   Future<void> _submit() async {
     final storeName = _storeNameController.text.trim();
     if (storeName.isEmpty) {
-      _showMessage('Ten cua hang khong duoc trong');
+      _showMessage('Tên cửa hàng không được trống');
       _storeNameFocus.requestFocus();
       return;
     }
     if (!SupabaseBootstrap.isConfigured) {
-      _showMessage('Chua cau hinh SUPABASE_URL va SUPABASE_ANON_KEY');
+      _showMessage('Chưa cấu hình SUPABASE_URL và SUPABASE_ANON_KEY');
       return;
     }
 
@@ -84,7 +84,7 @@ class _CreateStoreScreenState extends State<CreateStoreScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text(
-                      'Tao cua hang dau tien',
+                      'Tạo cửa hàng đầu tiên',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 30,
@@ -94,28 +94,28 @@ class _CreateStoreScreenState extends State<CreateStoreScreen> {
                     ),
                     const SizedBox(height: 10),
                     const Text(
-                      'Thong tin nay se dung de quan ly ban hang',
+                      'Thông tin này sẽ dùng để quản lý bán hàng',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 16, color: Color(0xFF374151)),
                     ),
                     const SizedBox(height: 28),
-                    const Text('Ten cua hang'),
+                    const Text('Tên cửa hàng'),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _storeNameController,
                       focusNode: _storeNameFocus,
                       textInputAction: TextInputAction.next,
-                      decoration: _inputDecoration('Vi du: Quan Bun Bo Hue'),
+                      decoration: _inputDecoration('Ví dụ: Quán Bún Bò Huế'),
                     ),
                     const SizedBox(height: 14),
-                    const Text('Dia chi (Khong bat buoc)'),
+                    const Text('Địa chỉ (Không bắt buộc)'),
                     const SizedBox(height: 6),
                     TextField(
                       controller: _storeAddressController,
                       textInputAction: TextInputAction.done,
                       onSubmitted: (_) => _submit(),
                       decoration: _inputDecoration(
-                        'Vi du: So 1 duong Tran Van On',
+                        'Ví dụ: Số 1 đường Trần Văn Ơn',
                       ),
                     ),
                     const SizedBox(height: 22),
@@ -135,7 +135,7 @@ class _CreateStoreScreenState extends State<CreateStoreScreen> {
                               ),
                             )
                           : const Text(
-                              'Tao cua hang',
+                              'Tạo cửa hàng',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
@@ -145,7 +145,7 @@ class _CreateStoreScreenState extends State<CreateStoreScreen> {
                     if (!SupabaseBootstrap.isConfigured) ...[
                       const SizedBox(height: 10),
                       const Text(
-                        'Can cau hinh Supabase bang --dart-define de luu cua hang.',
+                        'Cần cấu hình Supabase bằng --dart-define để lưu cửa hàng.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 12,

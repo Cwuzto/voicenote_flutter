@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/bank_account_repository.dart';
 import '../data/profile_store_repository.dart';
 import '../../../core/supabase/supabase_bootstrap.dart';
+import '../../../core/widgets/gradient_background.dart';
 import 'bank_account_list_screen.dart';
 import 'employee_list_screen.dart';
 import 'profile_screen.dart';
@@ -23,7 +24,7 @@ class _MoreScreenState extends State<MoreScreen> {
 
   bool _signingOut = false;
   bool _loading = true;
-  String _name = 'Tai khoan';
+  String _name = 'Tài khoản';
   String _phone = '';
   String _role = 'OWNER';
   bool _hasBankAccount = false;
@@ -38,14 +39,7 @@ class _MoreScreenState extends State<MoreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFEFF6FF), Color(0xFFF8FAFC), Color(0xFFE0ECFF)],
-        ),
-      ),
+    return GradientBackground(
       child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
@@ -57,15 +51,15 @@ class _MoreScreenState extends State<MoreScreen> {
                 children: [
                   _MenuRow(
                     icon: Icons.account_circle_outlined,
-                    text: 'Thong tin ca nhan',
-                    onTap: () => _open(context, const ProfileScreen()),
+                    text: 'Thông tin cá nhân',
+                    onTap: () => _openScreen(const ProfileScreen()),
                   ),
                   const _DividerLine(),
                   if (!_isEmployee)
                     _MenuRow(
                       icon: Icons.home_outlined,
-                      text: 'Thong tin cua hang',
-                      onTap: () => _open(context, const StoreInfoScreen()),
+                      text: 'Thông tin cửa hàng',
+                      onTap: () => _openScreen(const StoreInfoScreen()),
                     ),
                 ],
               ),
@@ -75,9 +69,8 @@ class _MoreScreenState extends State<MoreScreen> {
                   children: [
                     _MenuRow(
                       icon: Icons.volume_up_outlined,
-                      text: 'Loa doc tien',
-                      onTap: () =>
-                          _open(context, const SpeakerSettingsScreen()),
+                      text: 'Loa đọc tiền',
+                      onTap: () => _openScreen(const SpeakerSettingsScreen()),
                     ),
                     const _DividerLine(),
                     _MenuRow(
@@ -85,16 +78,15 @@ class _MoreScreenState extends State<MoreScreen> {
                           ? Icons.account_balance_wallet_outlined
                           : Icons.qr_code_rounded,
                       text: _hasBankAccount
-                          ? 'Tai khoan ngan hang'
-                          : 'Them QR de bat loa bao ting ting',
-                      onTap: () =>
-                          _open(context, const BankAccountListScreen()),
+                          ? 'Tài khoản ngân hàng'
+                          : 'Thêm QR để bật loa báo ting ting',
+                      onTap: () => _openScreen(const BankAccountListScreen()),
                     ),
                     const _DividerLine(),
                     _MenuRow(
                       icon: Icons.person_add_alt_1_outlined,
-                      text: 'Quan ly nhan vien',
-                      onTap: () => _open(context, const EmployeeListScreen()),
+                      text: 'Quản lý nhân viên',
+                      onTap: () => _openScreen(const EmployeeListScreen()),
                     ),
                   ],
                 ),
@@ -103,7 +95,7 @@ class _MoreScreenState extends State<MoreScreen> {
                 children: [
                   _MenuRow(
                     icon: Icons.phone_outlined,
-                    text: 'Goi tong dai',
+                    text: 'Gọi tổng đài',
                     trailing: const Text(
                       '1900 090807',
                       style: TextStyle(
@@ -133,7 +125,7 @@ class _MoreScreenState extends State<MoreScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Text(
-                          'Dang xuat',
+                          'Đăng xuất',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -143,7 +135,7 @@ class _MoreScreenState extends State<MoreScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Phien ban 1.1.1',
+                'Phiên bản 1.1.1',
                 style: TextStyle(color: Color(0xFF94A3B8)),
               ),
               const SizedBox(height: 24),
@@ -154,8 +146,12 @@ class _MoreScreenState extends State<MoreScreen> {
     );
   }
 
-  static void _open(BuildContext context, Widget screen) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+  Future<void> _openScreen(Widget screen) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+    if (!mounted) {
+      return;
+    }
+    await _loadData();
   }
 
   Future<void> _signOut() async {
@@ -217,7 +213,7 @@ class _MoreScreenState extends State<MoreScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Khong mo duoc ung dung goi dien.')),
+        const SnackBar(content: Text('Không mở được ứng dụng gọi điện.')),
       );
     }
   }
@@ -298,7 +294,7 @@ class _ProfileHero extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  phone.isEmpty ? 'Chua cap nhat so dien thoai' : phone,
+                  phone.isEmpty ? 'Chưa cập nhật số điện thoại' : phone,
                   style: const TextStyle(color: Color(0xFF64748B)),
                 ),
                 if (loading)

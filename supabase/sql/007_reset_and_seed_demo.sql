@@ -1,15 +1,15 @@
--- 003_seed_demo.sql
--- Reset demo data for the current store and seed fake data
--- from 2025-01-10 to current_date.
+-- 007_reset_and_seed_demo.sql
+-- Run this file to:
+-- 1. Ensure orders has paid_by_user_id
+-- 2. Reset all app data in public schema
+-- 3. Seed fresh demo data from 2025-01-10 to current_date
 --
--- Run after:
--- 1. 001_schema.sql
--- 2. 002_rls.sql
--- 3. 004_drop_username_use_email.sql
--- 4. 005_add_paid_by_user_to_orders.sql
--- IMPORTANT:
--- Set v_target_email or v_target_username below to the SAME account
--- you are currently using to log into the app.
+-- Note:
+-- - This script does NOT delete auth.users.
+-- - It clears public.users and recreates the mirrored app users needed
+--   for the selected demo store.
+-- - IMPORTANT: set v_target_email or v_target_username below to the SAME
+--   account you are currently using to log into the app.
 
 begin;
 
@@ -19,10 +19,22 @@ add column if not exists email text;
 alter table public.orders
 add column if not exists paid_by_user_id uuid references public.users(id);
 
+create index if not exists idx_orders_paid_by_user_id
+on public.orders(paid_by_user_id);
+
+delete from public.order_items;
+delete from public.orders;
+delete from public.employees;
+delete from public.products;
+delete from public.bank_accounts;
+delete from public.speaker_templates;
+delete from public.stores;
+delete from public.users;
+
 do $$
 declare
   v_target_username text := '';
-  v_target_email text := 'YOUR_LOGIN_EMAIL_HERE';
+  v_target_email text := 'bao@gmail.com';
 
   v_owner_id uuid;
   v_owner_username text;
@@ -61,22 +73,24 @@ begin
   if coalesce(trim(v_target_username), '') = ''
      and coalesce(trim(v_target_email), '') in ('', 'YOUR_LOGIN_EMAIL_HERE') then
     raise exception
-      'Please set v_target_email or v_target_username at the top of 003_seed_demo.sql before running.';
+      'Please set v_target_email or v_target_username at the top of 007_reset_and_seed_demo.sql before running.';
   end if;
 
   if coalesce(trim(v_target_username), '') <> '' then
-    select id, username, email
+    select au.id, trim(v_target_username), au.email
       into v_owner_id, v_owner_username, v_owner_email
-    from public.users
-    where username = trim(v_target_username)
+    from auth.users au
+    where split_part(coalesce(au.email, ''), '@', 1) = trim(v_target_username)
+    order by au.created_at desc
     limit 1;
   end if;
 
   if v_owner_id is null and coalesce(trim(v_target_email), '') <> '' then
-    select id, username, email
+    select au.id, split_part(coalesce(au.email, ''), '@', 1), au.email
       into v_owner_id, v_owner_username, v_owner_email
-    from public.users
-    where lower(email) = lower(trim(v_target_email))
+    from auth.users au
+    where lower(au.email) = lower(trim(v_target_email))
+    order by au.created_at desc
     limit 1;
   end if;
 
@@ -106,57 +120,16 @@ begin
     coalesce(nullif(trim(v_owner_email), ''), 'owner_demo@voicepos.local'),
     'OWNER',
     true
-  )
-  on conflict (id) do update
-    set full_name = excluded.full_name,
-        username = excluded.username,
-        email = excluded.email,
-        role = 'OWNER',
-        is_active = true;
-
-  select id
-    into v_store_id
-  from public.stores
-  where owner_id = v_owner_id
-  order by created_at desc
-  limit 1;
-
-  if v_store_id is null then
-    insert into public.stores(owner_id, name, phone, address)
-    values (
-      v_owner_id,
-      'VoiceNote Demo Store',
-      '0909123456',
-      '123 Đường Demo, Quận 1, TP.HCM'
-    )
-    returning id into v_store_id;
-  end if;
-
-  update public.stores
-  set name = 'VoiceNote Demo Store',
-      phone = '0909123456',
-      address = '123 Đường Demo, Quận 1, TP.HCM'
-  where id = v_store_id;
-
-  delete from public.order_items
-  where order_id in (
-    select id from public.orders where store_id = v_store_id
   );
 
-  delete from public.orders
-  where store_id = v_store_id;
-
-  delete from public.employees
-  where store_id = v_store_id;
-
-  delete from public.products
-  where store_id = v_store_id;
-
-  delete from public.bank_accounts
-  where store_id = v_store_id;
-
-  delete from public.speaker_templates
-  where store_id = v_store_id;
+  insert into public.stores(owner_id, name, phone, address)
+  values (
+    v_owner_id,
+    'VoiceNote Demo Store',
+    '0909123456',
+    '123 Đường Demo, Quận 1, TP.HCM'
+  )
+  returning id into v_store_id;
 
   insert into public.users(id, full_name, username, email, role, is_active)
   values
@@ -183,21 +156,13 @@ begin
       'demo_emp_03@voicenote.local',
       'EMPLOYEE',
       true
-    )
-  on conflict (id) do update
-    set full_name = excluded.full_name,
-        username = excluded.username,
-        email = excluded.email,
-        role = 'EMPLOYEE',
-        is_active = true;
+    );
 
   insert into public.employees(store_id, user_id, is_active)
   values
     (v_store_id, v_employee_1_id, true),
     (v_store_id, v_employee_2_id, true),
-    (v_store_id, v_employee_3_id, true)
-  on conflict (store_id, user_id) do update
-    set is_active = true;
+    (v_store_id, v_employee_3_id, true);
 
   v_product_names := array[
     'Phở bò',
@@ -426,7 +391,7 @@ begin
   end loop;
 
   raise notice
-    'Seed completed for store % | orders=% | paid=% | unpaid=% | from % to %',
+    'Reset and seed completed for store % | orders=% | paid=% | unpaid=% | from % to %',
     v_store_id,
     v_total_orders,
     v_paid_orders,

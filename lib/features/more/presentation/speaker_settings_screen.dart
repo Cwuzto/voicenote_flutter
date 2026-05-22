@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 
+import '../../../core/widgets/app_dialogs.dart';
+import '../../../core/widgets/gradient_background.dart';
 import '../data/speaker_template_repository.dart';
 
 class SpeakerSettingsScreen extends StatefulWidget {
@@ -20,7 +22,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
   bool _loading = true;
   bool _speaking = false;
   bool _ttsReady = false;
-  String _ttsModeLabel = 'Dang khoi tao TTS...';
+  String _ttsModeLabel = 'Đang khởi tạo TTS...';
   String? _errorMessage;
 
   @override
@@ -39,14 +41,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFEFF6FF), Color(0xFFF8FAFC), Color(0xFFE0ECFF)],
-          ),
-        ),
+      body: GradientBackground(
         child: SafeArea(
           child: Column(
             children: [
@@ -60,7 +55,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
                     ),
                     const Expanded(
                       child: Text(
-                        'Loa doc tien',
+                        'Loa đọc tiền',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
@@ -87,7 +82,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
-                  'Tuy chinh thong bao de moi lan nhan tien them y nghia',
+                  'Tùy chỉnh thông báo để mỗi lần nhận tiền thêm ý nghĩa',
                   style: TextStyle(color: Color(0xFF64748B)),
                 ),
               ),
@@ -109,7 +104,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
                 const Padding(
                   padding: EdgeInsets.only(top: 4),
                   child: Text(
-                    'Dang nghe thu...',
+                    'Đang nghe thử...',
                     style: TextStyle(
                       color: Color(0xFF1565FF),
                       fontWeight: FontWeight.w600,
@@ -152,7 +147,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
     if (_templates.isEmpty) {
       return const Center(
         child: Text(
-          'Chua co mau cau nao',
+          'Chưa có mẫu câu nào',
           style: TextStyle(color: Color(0xFF6B7280)),
         ),
       );
@@ -203,9 +198,9 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
                   }
                 },
                 itemBuilder: (context) => const [
-                  PopupMenuItem(value: 'edit', child: Text('Sua')),
-                  PopupMenuItem(value: 'delete', child: Text('Xoa')),
-                  PopupMenuItem(value: 'test', child: Text('Nghe thu')),
+                  PopupMenuItem(value: 'edit', child: Text('Sửa')),
+                  PopupMenuItem(value: 'delete', child: Text('Xóa')),
+                  PopupMenuItem(value: 'test', child: Text('Nghe thử')),
                 ],
                 child: const Icon(
                   Icons.more_vert_rounded,
@@ -251,7 +246,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
   }
 
   Future<void> _add() async {
-    final content = await _showEditorDialog(title: 'Them mau cau');
+    final content = await _showEditorDialog(title: 'Thêm mẫu câu');
     if (content == null || !mounted) {
       return;
     }
@@ -263,7 +258,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
       setState(() {
         _templates.insert(0, created);
       });
-      _showMessage('Da them');
+      _showMessage('Đã thêm');
     } catch (e) {
       _showMessage(e.toString());
     }
@@ -271,7 +266,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
 
   Future<void> _edit(SpeakerTemplateVm item) async {
     final content = await _showEditorDialog(
-      title: 'Sua mau cau',
+      title: 'Sửa mẫu câu',
       initialContent: item.content,
     );
     if (content == null || !mounted) {
@@ -291,34 +286,19 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
           _templates[index] = updated;
         }
       });
-      _showMessage('Da cap nhat');
+      _showMessage('Đã cập nhật');
     } catch (e) {
       _showMessage(e.toString());
     }
   }
 
   Future<void> _delete(SpeakerTemplateVm item) async {
-    final ok = await showDialog<bool>(
+    final ok = await showAppConfirmDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Xoa mau cau'),
-          content: const Text('Ban co chac muon xoa mau cau nay?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Huy'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFDC2626),
-              ),
-              child: const Text('Xoa'),
-            ),
-          ],
-        );
-      },
+      title: 'Xóa mẫu câu',
+      message: 'Bạn có chắc muốn xóa mẫu câu này?',
+      confirmLabel: 'Xóa',
+      destructive: true,
     );
     if (ok != true || !mounted) {
       return;
@@ -332,7 +312,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
       setState(() {
         _templates.removeWhere((e) => e.id == item.id);
       });
-      _showMessage('Da xoa');
+      _showMessage('Đã xóa');
     } catch (e) {
       _showMessage(e.toString());
     }
@@ -354,7 +334,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
           );
         }
       });
-      _showMessage('Da chon mac dinh');
+      _showMessage('Đã chọn mặc định');
     } catch (e) {
       _showMessage(e.toString());
     }
@@ -369,16 +349,17 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
+          scrollable: true,
           title: Text(title),
           content: TextField(
             controller: controller,
             maxLines: 3,
-            decoration: const InputDecoration(hintText: 'Noi dung mau cau'),
+            decoration: const InputDecoration(hintText: 'Nội dung mẫu câu'),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Huy'),
+              child: const Text('Hủy'),
             ),
             FilledButton(
               onPressed: () {
@@ -386,7 +367,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
                 if (text.isEmpty) {
                   ScaffoldMessenger.of(dialogContext).showSnackBar(
                     const SnackBar(
-                      content: Text('Noi dung khong duoc de trong'),
+                      content: Text('Nội dung không được để trống'),
                     ),
                   );
                   return;
@@ -396,7 +377,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF1565FF),
               ),
-              child: const Text('Luu'),
+              child: const Text('Lưu'),
             ),
           ],
         );
@@ -434,8 +415,8 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
 
       _ttsReady = true;
       _ttsModeLabel = viReady
-          ? 'TTS san sang (vi-VN).'
-          : 'TTS san sang voi fallback locale (en-US).';
+          ? 'TTS sẵn sàng (vi-VN).'
+          : 'TTS sẵn sàng với locale dự phòng (en-US).';
 
       _tts.setStartHandler(() {
         if (!mounted) {
@@ -467,7 +448,7 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
         }
         setState(() {
           _speaking = false;
-          _errorMessage = 'TTS error: $msg';
+          _errorMessage = 'TTS lỗi: $msg';
         });
       });
 
@@ -480,14 +461,14 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
       }
       setState(() {
         _ttsReady = false;
-        _ttsModeLabel = 'Khong khoi tao duoc TTS tren thiet bi nay.';
+        _ttsModeLabel = 'Không khởi tạo được TTS trên thiết bị này.';
       });
     }
   }
 
   Future<void> _testSound(String template) async {
     if (!_ttsReady) {
-      _showMessage('TTS chua san sang. Kiem tra thiet bi/voice engine.');
+      _showMessage('TTS chưa sẵn sàng. Kiểm tra thiết bị/voice engine.');
       return;
     }
 
@@ -500,9 +481,9 @@ class _SpeakerSettingsScreenState extends State<SpeakerSettingsScreen> {
         await _tts.stop();
       }
       await _tts.speak(sample);
-      _showMessage('Dang phat thu noi dung...');
+      _showMessage('Đang phát thử nội dung...');
     } catch (e) {
-      _showMessage('Khong the phat thu: $e');
+      _showMessage('Không thể phát thử: $e');
     }
   }
 }

@@ -48,6 +48,7 @@ create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   store_id uuid not null references public.stores(id),
   seller_id uuid not null references public.users(id),
+  paid_by_user_id uuid references public.users(id),
   customer_name text,
   status text not null default 'UNPAID' check (status in ('UNPAID','PAID')),
   payment_method text not null default 'CASH',

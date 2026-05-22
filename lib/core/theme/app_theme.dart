@@ -16,7 +16,7 @@ class AppTheme {
 
     return base.copyWith(
       textTheme: textTheme,
-      scaffoldBackgroundColor: const Color(0xFFF5F8FF),
+      scaffoldBackgroundColor: const Color(0xFFEFF5FF),
       appBarTheme: AppBarTheme(
         centerTitle: false,
         elevation: 0,
@@ -70,10 +70,70 @@ class AppTheme {
           textStyle: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        titleTextStyle: textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          fontSize: 22,
+          color: const Color(0xFF0F172A),
+        ),
+        contentTextStyle: textTheme.bodyMedium?.copyWith(
+          color: const Color(0xFF475569),
+          height: 1.5,
+        ),
+      ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        modalElevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+      ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        headerBackgroundColor: const Color(0xFFEAF2FF),
+        headerForegroundColor: const Color(0xFF0F172A),
+        dayForegroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return Colors.white;
+          }
+          return const Color(0xFF0F172A);
+        }),
+        dayBackgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return seed;
+          }
+          return null;
+        }),
+        rangeSelectionBackgroundColor: const Color(0xFFEAF2FF),
+        todayForegroundColor: const WidgetStatePropertyAll(seed),
+        cancelButtonStyle: TextButton.styleFrom(
+          foregroundColor: const Color(0xFF64748B),
+        ),
+        confirmButtonStyle: TextButton.styleFrom(
+          foregroundColor: seed,
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        textStyle: textTheme.bodyMedium?.copyWith(
+          color: const Color(0xFF0F172A),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.white.withValues(alpha: 0.92),
         indicatorColor: const Color(0xFFE0ECFF),
-        height: 72,
+        height: 86,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           final selected = states.contains(WidgetState.selected);
           return textTheme.labelMedium?.copyWith(
