@@ -267,13 +267,14 @@ begin
     bank_name,
     account_number,
     account_holder,
+    is_default,
     is_active,
     created_at
   )
   values
-    (v_store_id, 'Vietcombank', '0123456789', 'BẢO DEMO', true, '2025-05-02 08:00:00+00'),
-    (v_store_id, 'Techcombank', '1900368686', 'BẢO DEMO', false, '2025-11-15 08:00:00+00'),
-    (v_store_id, 'MB Bank', '6868999999', 'BẢO DEMO', true, '2026-01-05 08:00:00+00');
+    (v_store_id, 'Vietcombank', '0123456789', 'BẢO DEMO', true, true, '2025-05-02 08:00:00+00'),
+    (v_store_id, 'Techcombank', '1900368686', 'BẢO DEMO', false, false, '2025-11-15 08:00:00+00'),
+    (v_store_id, 'MB Bank', '6868999999', 'BẢO DEMO', false, true, '2026-01-05 08:00:00+00');
 
   insert into public.speaker_templates (
     store_id,

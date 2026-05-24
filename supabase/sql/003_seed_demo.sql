@@ -252,11 +252,12 @@ begin
     bank_name,
     account_number,
     account_holder,
+    is_default,
     is_active
   )
   values
-    (v_store_id, 'Vietcombank', '0123456789', 'VOICENOTE DEMO STORE', true),
-    (v_store_id, 'MB Bank', '0987654321', 'VOICENOTE DEMO STORE', true);
+    (v_store_id, 'Vietcombank', '0123456789', 'VOICENOTE DEMO STORE', true, true),
+    (v_store_id, 'MB Bank', '0987654321', 'VOICENOTE DEMO STORE', false, true);
 
   insert into public.speaker_templates(store_id, title, content, is_default)
   values
