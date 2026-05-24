@@ -27,13 +27,17 @@ Future<T?> showAppOptionSheet<T>({
   final colorScheme = Theme.of(context).colorScheme;
   return showModalBottomSheet<T>(
     context: context,
+    isScrollControlled: true,
     showDragHandle: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
     builder: (context) {
+      final maxHeight = MediaQuery.sizeOf(context).height * 0.78;
       return Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
         child: Container(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(28),
@@ -81,6 +85,7 @@ Future<T?> showAppOptionSheet<T>({
               Flexible(
                 child: ListView.separated(
                   shrinkWrap: true,
+                  physics: const ClampingScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
                   itemCount: actions.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
@@ -217,14 +222,24 @@ Future<bool> showAppConfirmDialog({
           style: const TextStyle(height: 1.45),
         ),
         actions: [
-          TextButton(
+          OutlinedButton(
             onPressed: () => Navigator.pop(context, false),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF334155),
+              backgroundColor: const Color(0xFFF8FAFC),
+              side: const BorderSide(color: Color(0xFFE2E8F0)),
+              minimumSize: const Size(108, 40),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
             child: Text(cancelLabel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(
               backgroundColor: destructive ? const Color(0xFFDC2626) : accent,
+              minimumSize: const Size(108, 40),
             ),
             child: Text(confirmLabel),
           ),

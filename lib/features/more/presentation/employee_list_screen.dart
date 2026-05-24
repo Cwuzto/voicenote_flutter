@@ -321,15 +321,17 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
               titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              title: Text(isEdit ? 'S?a nh?n vi?n' : 'Th?m nh?n vi?n'),
+              title: Text(isEdit ? 'Sửa nhân viên' : 'Thêm nhân viên'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextField(
                     controller: nameController,
                     textInputAction: TextInputAction.next,
                     decoration: InputDecoration(
-                      labelText: 'H? t?n',
+                      labelText: 'Họ và tên',
+                      prefixIcon: const Icon(Icons.person_outline_rounded),
                       filled: true,
                       fillColor: const Color(0xFFF8FAFC),
                       border: OutlineInputBorder(
@@ -345,6 +347,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                     textInputAction: TextInputAction.done,
                     decoration: InputDecoration(
                       labelText: 'Email',
+                      prefixIcon: const Icon(Icons.alternate_email_rounded),
                       filled: true,
                       fillColor: const Color(0xFFF8FAFC),
                       border: OutlineInputBorder(
@@ -365,7 +368,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Text('K?ch ho?t'),
+                        const Text('Kích hoạt'),
                         const Spacer(),
                         Switch(
                           value: isActive,
@@ -384,7 +387,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                       child: Padding(
                         padding: EdgeInsets.only(top: 8),
                         child: Text(
-                          'L?u ?: Email ph?i t?n t?i s?n trong h? th?ng.',
+                          'Lưu ?: Email phải tồn tại trong hệ thống.',
                           style: TextStyle(
                             fontSize: 12,
                             color: Color(0xFF6B7280),
@@ -392,12 +395,19 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                         ),
                       ),
                     ),
+                  const SizedBox(height: 4),
                 ],
               ),
               actions: [
-                TextButton(
+                OutlinedButton(
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('H?y'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF334155),
+                    backgroundColor: const Color(0xFFF8FAFC),
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    minimumSize: const Size(108, 40),
+                  ),
+                  child: const Text('Hủy'),
                 ),
                 FilledButton(
                   onPressed: () {
@@ -406,7 +416,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                     if (name.isEmpty || email.isEmpty || !email.contains('@')) {
                       ScaffoldMessenger.of(dialogContext).showSnackBar(
                         const SnackBar(
-                          content: Text('Vui l?ng nh?p ??y ?? th?ng tin'),
+                          content: Text('Vui lòng nhập đầy đủ thông tin'),
                         ),
                       );
                       return;
@@ -422,8 +432,9 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                   },
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF1565FF),
+                    minimumSize: const Size(108, 40),
                   ),
-                  child: const Text('L?u'),
+                  child: const Text('Lưu'),
                 ),
               ],
             );

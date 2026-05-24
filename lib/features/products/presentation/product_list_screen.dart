@@ -144,19 +144,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
                         const SizedBox(width: 8),
                         InkWell(
                           borderRadius: BorderRadius.circular(999),
-                          onTap: _openCreateCategoryDialog,
-                          child: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE5EAF2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(Icons.create_new_folder_outlined),
-                          ),
-                        ),
-                        InkWell(
-                          borderRadius: BorderRadius.circular(999),
                           onTap: () {
                             setState(() {
                               _searchMode = true;
@@ -413,50 +400,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
     );
   }
 
-  Future<void> _openCreateCategoryDialog() async {
-    final controller = TextEditingController();
-    final created = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tạo danh mục mới'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Ví dụ: Món nướng, Nước ép...',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Hủy'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('Tạo'),
-          ),
-        ],
-      ),
-    );
-    if (created == null || created.isEmpty) {
-      return;
-    }
-    try {
-      await _categoryRepository.createCategory(created);
-      await _loadCategories();
-      if (!mounted) return;
-      setState(() {
-        _activeCategory = created;
-        _invalidateProductGroupingCache();
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(e.toString())));
-    }
-  }
-
   Future<void> _openAddOrEditDialog({ProductVm? product}) async {
     final nameController = TextEditingController(text: product?.name ?? '');
     final categoryController = TextEditingController(
@@ -536,9 +479,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isEdit
-                                  ? 'Sửa sản phẩm'
-                                  : 'Thêm sản phẩm',
+                              isEdit ? 'Sửa sản phẩm' : 'Thêm sản phẩm',
                               style: const TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
@@ -719,9 +660,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
                             if (duplicated) {
                               ScaffoldMessenger.of(this.context).showSnackBar(
                                 const SnackBar(
-                                  content: Text(
-                                    'Tên sản phẩm này đã tồn tại',
-                                  ),
+                                  content: Text('Tên sản phẩm này đã tồn tại'),
                                 ),
                               );
                               return;
