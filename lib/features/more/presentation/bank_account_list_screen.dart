@@ -163,9 +163,15 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
         _accounts
           ..clear()
           ..addAll(data);
-        if (_defaultAccountId == null && _accounts.isNotEmpty) {
-          _defaultAccountId = _accounts.first.id;
+        String? defaultId;
+        for (final item in _accounts) {
+          if (item.isDefault) {
+            defaultId = item.id;
+            break;
+          }
         }
+        _defaultAccountId =
+            defaultId ?? (_accounts.isNotEmpty ? _accounts.first.id : null);
       });
     } catch (e) {
       if (!mounted) {
@@ -200,7 +206,9 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
       }
       setState(() {
         _accounts.insert(0, created);
-        _defaultAccountId ??= created.id;
+        if (created.isDefault || _defaultAccountId == null) {
+          _defaultAccountId = created.id;
+        }
       });
       _showMessage('Đã thêm');
     } catch (e) {
@@ -269,9 +277,24 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
       return;
     }
     if (action == 'default') {
-      setState(() {
-        _defaultAccountId = account.id;
-      });
+      try {
+        await _repository.setDefaultAccount(account.id);
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _defaultAccountId = account.id;
+          for (var i = 0; i < _accounts.length; i++) {
+            final current = _accounts[i];
+            _accounts[i] = current.copyWith(
+              isDefault: current.id == account.id,
+            );
+          }
+        });
+        _showMessage('Đã cập nhật tài khoản mặc định');
+      } catch (e) {
+        _showMessage(e.toString());
+      }
       return;
     }
 
@@ -330,15 +353,17 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
               titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
               contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
               actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              title: Text(isEdit ? 'S?a t?i kho?n' : 'Th?m t?i kho?n'),
+              title: Text(isEdit ? 'Sửa tài khoản' : 'Thêm tài khoản'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TextField(
                     controller: bankController,
                     textInputAction: TextInputAction.next,
                     decoration: InputDecoration(
-                      labelText: 'Ng?n h?ng',
+                      labelText: 'Ngân hàng',
+                      prefixIcon: const Icon(Icons.account_balance_rounded),
                       filled: true,
                       fillColor: const Color(0xFFF8FAFC),
                       border: OutlineInputBorder(
@@ -353,7 +378,8 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
                     keyboardType: TextInputType.number,
                     textInputAction: TextInputAction.next,
                     decoration: InputDecoration(
-                      labelText: 'S? t?i kho?n',
+                      labelText: 'Số tài khoản',
+                      prefixIcon: const Icon(Icons.numbers_rounded),
                       filled: true,
                       fillColor: const Color(0xFFF8FAFC),
                       border: OutlineInputBorder(
@@ -367,13 +393,23 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
                     controller: holderController,
                     textInputAction: TextInputAction.done,
                     decoration: InputDecoration(
-                      labelText: 'Ch? t?i kho?n',
+                      labelText: 'Chủ tài khoản',
+                      prefixIcon: const Icon(Icons.badge_outlined),
                       filled: true,
                       fillColor: const Color(0xFFF8FAFC),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide.none,
                       ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Kiểm tra số tài khoản trước khi lưu để tránh sai QR thanh toán.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                   if (inlineError != null) ...[
@@ -393,9 +429,15 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
                 ],
               ),
               actions: [
-                TextButton(
+                OutlinedButton(
                   onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('H?y'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF334155),
+                    backgroundColor: const Color(0xFFF8FAFC),
+                    side: const BorderSide(color: Color(0xFFE2E8F0)),
+                    minimumSize: const Size(108, 40),
+                  ),
+                  child: const Text('Hủy'),
                 ),
                 FilledButton(
                   onPressed: () {
@@ -404,7 +446,7 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
                     final holder = holderController.text.trim();
                     if (bankName.isEmpty || number.isEmpty || holder.isEmpty) {
                       setDialogState(() {
-                        inlineError = 'Vui l?ng nh?p ??y ?? th?ng tin.';
+                        inlineError = 'Vui lòng nhập đầy đủ thông tin.';
                       });
                       return;
                     }
@@ -419,8 +461,9 @@ class _BankAccountListScreenState extends State<BankAccountListScreen> {
                   },
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF1565FF),
+                    minimumSize: const Size(108, 40),
                   ),
-                  child: Text(isEdit ? 'L?u' : 'Th?m'),
+                  child: Text(isEdit ? 'Lưu' : 'Thêm'),
                 ),
               ],
             );

@@ -36,8 +36,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
   OrderStatusFilter _statusFilter = OrderStatusFilter.all;
   OrderTimeFilter _timeFilter = OrderTimeFilter.all;
   DateTimeRange? _customRange;
-  String? _highlightOrderId;
-  String? _handledLastAddedOrderId;
   List<OrderVm>? _lastFilteredOrdersSource;
   int _lastFilteredOrdersCount = -1;
   String _lastFilterQuery = '';
@@ -56,30 +54,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
       unawaited(OrderStore.instance.loadOrders(force: true));
     }
     _storeListener = () {
-      final lastAddedOrderId = OrderStore.instance.lastAddedOrderId;
-      if (lastAddedOrderId != null &&
-          lastAddedOrderId != _handledLastAddedOrderId) {
-        _handledLastAddedOrderId = lastAddedOrderId;
-        _highlightOrderId = lastAddedOrderId;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted || !_scrollController.hasClients) {
-            return;
-          }
-          _scrollController.animateTo(
-            0,
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOut,
-          );
-        });
-        Future<void>.delayed(const Duration(seconds: 2), () {
-          if (!mounted || _highlightOrderId != lastAddedOrderId) {
-            return;
-          }
-          setState(() {
-            _highlightOrderId = null;
-          });
-        });
-      }
       if (mounted) {
         _invalidateVisibleOrdersCache();
         setState(() {});
@@ -443,7 +417,6 @@ class _OrderListScreenState extends State<OrderListScreen> {
                   final order = group.orders[index];
                   return _OrderCard(
                     order: order,
-                    highlight: _highlightOrderId == order.id,
                     onPaidTap: (value) => _confirmPaid(value),
                     onTap: (value) async {
                       await Navigator.push<void>(
@@ -873,13 +846,11 @@ class _StickyDateHeaderDelegate extends SliverPersistentHeaderDelegate {
 class _OrderCard extends StatelessWidget {
   const _OrderCard({
     required this.order,
-    required this.highlight,
     required this.onPaidTap,
     required this.onTap,
   });
 
   final OrderVm order;
-  final bool highlight;
   final ValueChanged<OrderVm> onPaidTap;
   final ValueChanged<OrderVm> onTap;
 
@@ -891,7 +862,7 @@ class _OrderCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: highlight ? const Color(0xFFFFF7CC) : Colors.white,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Material(

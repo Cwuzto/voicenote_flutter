@@ -86,7 +86,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
   }
 
   Widget _buildNavigationBar() {
-    final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final disableAnimations =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final duration = disableAnimations
         ? Duration.zero
         : const Duration(milliseconds: 220);
@@ -175,7 +176,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
           icon: Icons.home_outlined,
           selectedIcon: Icons.home,
           label: 'Tổng quan',
-          screen: OverviewScreen(),
+          screen: OverviewScreen(onOrderCreated: _goToOrdersSmooth),
         ),
       );
       tabs.add(
@@ -253,7 +254,8 @@ class _MainShellScreenState extends State<MainShellScreen> {
     }
     _setNavVisible(true);
     final bodyIndex = _bodyIndexFromNavIndex(navIndex);
-    final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final disableAnimations =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     setState(() {
       _selectedIndex = navIndex;
     });
@@ -328,6 +330,15 @@ class _MainShellScreenState extends State<MainShellScreen> {
     }
   }
 
+  Future<void> _goToOrdersSmooth() async {
+    _setNavVisible(true);
+    await Future<void>.delayed(const Duration(milliseconds: 110));
+    if (!mounted) {
+      return;
+    }
+    _selectTab(_isEmployee ? 1 : 3);
+  }
+
   Future<void> _loadRole() async {
     try {
       if (!SupabaseBootstrap.isInitialized) {
@@ -348,7 +359,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
     } finally {
       if (mounted) {
         final nextTabs = _buildTabs();
-        final nextSelectedIndex = _selectedIndex >= nextTabs.length ? 0 : _selectedIndex;
+        final nextSelectedIndex = _selectedIndex >= nextTabs.length
+            ? 0
+            : _selectedIndex;
         setState(() {
           _tabs = nextTabs;
           _selectedIndex = nextSelectedIndex;
@@ -410,9 +423,7 @@ class _NavTabButton extends StatelessWidget {
         curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
         decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFFEAF2FF)
-              : Colors.transparent,
+          color: selected ? const Color(0xFFEAF2FF) : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -424,9 +435,7 @@ class _NavTabButton extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: selected
-                    ? Colors.white
-                    : const Color(0xFFF3F7FD),
+                color: selected ? Colors.white : const Color(0xFFF3F7FD),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: selected
                     ? [
@@ -504,9 +513,7 @@ class _SaleNavButton extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(13),
-                    border: Border.all(
-                      color: const Color(0xFFD6E6FF),
-                    ),
+                    border: Border.all(color: const Color(0xFFD6E6FF)),
                   ),
                   child: Icon(icon, color: const Color(0xFF1565FF), size: 21),
                 ),

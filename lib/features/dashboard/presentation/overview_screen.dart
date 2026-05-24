@@ -9,7 +9,9 @@ import '../../sale/presentation/sale_screen.dart';
 import 'best_seller_screen.dart';
 
 class OverviewScreen extends StatefulWidget {
-  const OverviewScreen({super.key});
+  const OverviewScreen({super.key, this.onOrderCreated});
+
+  final VoidCallback? onOrderCreated;
 
   @override
   State<OverviewScreen> createState() => _OverviewScreenState();
@@ -276,11 +278,19 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
   Future<void> _openSale() async {
     if (!mounted) return;
-    await Navigator.push<void>(
+    final saved = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (_) => const SaleScreen()),
+      MaterialPageRoute(
+        builder: (routeContext) => SaleScreen(
+          onOrderSaved: () => Navigator.of(routeContext).pop(true),
+        ),
+      ),
     );
     if (!mounted) return;
+    if ((saved ?? false) && widget.onOrderCreated != null) {
+      widget.onOrderCreated!.call();
+      return;
+    }
     await _loadOverview();
   }
 
@@ -379,20 +389,11 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
     final startX = range.start.millisecondsSinceEpoch.toDouble();
     final endX = range.end.millisecondsSinceEpoch.toDouble();
-    if (points.length == 1) {
-      final only = points.first;
-      if (only.xMillis != startX) {
-        points.insert(0, _ChartPointVm(xMillis: startX, y: 0));
-      }
-      if (only.xMillis < endX) {
-        points.add(_ChartPointVm(xMillis: endX, y: 0));
-      }
-    }
-
     if (points.isEmpty) {
       return _ChartRenderData(
         points: const [],
         isSingleDay: isSingleDay,
+        hasSinglePoint: false,
         minY: 0,
         maxY: 0,
         startX: startX,
@@ -400,15 +401,28 @@ class _OverviewScreenState extends State<OverviewScreen> {
       );
     }
 
+    final hasSinglePoint = points.length == 1;
     var minY = points.first.y;
     var maxY = points.first.y;
     for (final p in points) {
       if (p.y < minY) minY = p.y;
       if (p.y > maxY) maxY = p.y;
     }
+    if ((maxY - minY).abs() < 1) {
+      if (maxY <= 0) {
+        maxY = 1;
+        minY = 0;
+      } else {
+        minY = 0;
+        maxY = maxY * 1.15;
+      }
+    } else if (minY > 0) {
+      minY = 0;
+    }
     return _ChartRenderData(
       points: points,
       isSingleDay: isSingleDay,
+      hasSinglePoint: hasSinglePoint,
       minY: minY,
       maxY: maxY,
       startX: startX,
@@ -837,6 +851,7 @@ class _ChartRenderData {
   const _ChartRenderData({
     required this.points,
     required this.isSingleDay,
+    required this.hasSinglePoint,
     required this.minY,
     required this.maxY,
     required this.startX,
@@ -845,6 +860,7 @@ class _ChartRenderData {
 
   final List<_ChartPointVm> points;
   final bool isSingleDay;
+  final bool hasSinglePoint;
   final double minY;
   final double maxY;
   final double startX;
@@ -1010,26 +1026,10 @@ class _MiniLineChartPainter extends CustomPainter {
     final plotPoints = points.map(mapPoint).toList();
     final chartRect = Rect.fromLTWH(leftPad, topPad, width, height);
 
-    Path buildSmoothPath(List<Offset> pts) {
-      if (pts.length < 2) {
-        return Path()..addOval(Rect.fromCircle(center: pts.first, radius: 1));
-      }
+    Path buildLinePath(List<Offset> pts) {
       final path = Path()..moveTo(pts.first.dx, pts.first.dy);
-      for (int i = 0; i < pts.length - 1; i++) {
-        final p0 = i == 0 ? pts[i] : pts[i - 1];
-        final p1 = pts[i];
-        final p2 = pts[i + 1];
-        final p3 = i + 2 < pts.length ? pts[i + 2] : p2;
-        const t = 0.18; // lower tension to avoid overshoot
-        final cp1 = Offset(
-          p1.dx + (p2.dx - p0.dx) * t,
-          (p1.dy + (p2.dy - p0.dy) * t).clamp(topPad, topPad + height),
-        );
-        final cp2 = Offset(
-          p2.dx - (p3.dx - p1.dx) * t,
-          (p2.dy - (p3.dy - p1.dy) * t).clamp(topPad, topPad + height),
-        );
-        path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
+      for (int i = 1; i < pts.length; i++) {
+        path.lineTo(pts[i].dx, pts[i].dy);
       }
       return path;
     }
@@ -1047,8 +1047,67 @@ class _MiniLineChartPainter extends CustomPainter {
       );
     }
 
-    final smoothPath = buildSmoothPath(plotPoints);
-    final fillPath = Path.from(smoothPath)
+    if (data.hasSinglePoint) {
+      final p = plotPoints.first;
+      final guidePaint = Paint()
+        ..color = const Color(0x331565FF)
+        ..strokeWidth = 1.2;
+      canvas.drawLine(
+        Offset(p.dx, topPad),
+        Offset(p.dx, topPad + height),
+        guidePaint,
+      );
+
+      final columnPaint = Paint()
+        ..shader =
+            const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0x4D1565FF), Color(0x051565FF)],
+            ).createShader(
+              Rect.fromLTWH(p.dx - 12, p.dy, 24, (topPad + height) - p.dy),
+            )
+        ..style = PaintingStyle.fill;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(p.dx - 12, p.dy, 24, (topPad + height) - p.dy),
+          const Radius.circular(12),
+        ),
+        columnPaint,
+      );
+
+      final dotPaint = Paint()..color = const Color(0xFF1D4ED8);
+      final ringPaint = Paint()
+        ..color = const Color(0x4D0EA5E9)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6;
+      canvas.drawCircle(p, 5.8, dotPaint);
+      canvas.drawCircle(p, 10, ringPaint);
+
+      final tp = TextPainter(
+        text: TextSpan(
+          text:
+              '${_OverviewScreenState._formatCurrency(points.first.y.round())}d',
+          style: const TextStyle(
+            color: Color(0xFF6B7280),
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final labelX = (p.dx - tp.width / 2).clamp(
+        leftPad,
+        size.width - rightPad - tp.width,
+      );
+      final labelY = (p.dy - tp.height - 8).clamp(0.0, size.height - tp.height);
+      tp.paint(canvas, Offset(labelX, labelY));
+      canvas.restore();
+      return;
+    }
+
+    final linePath = buildLinePath(plotPoints);
+    final fillPath = Path.from(linePath)
       ..lineTo(plotPoints.last.dx, topPad + height)
       ..lineTo(plotPoints.first.dx, topPad + height)
       ..close();
@@ -1068,7 +1127,7 @@ class _MiniLineChartPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    canvas.drawPath(smoothPath, glowPaint);
+    canvas.drawPath(linePath, glowPaint);
 
     final linePaint = Paint()
       ..shader = const LinearGradient(
@@ -1079,7 +1138,7 @@ class _MiniLineChartPainter extends CustomPainter {
       ..strokeWidth = 2.6
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    canvas.drawPath(smoothPath, linePaint);
+    canvas.drawPath(linePath, linePaint);
 
     if (selectedIndex != null &&
         selectedIndex! >= 0 &&
@@ -1115,12 +1174,17 @@ class _MiniLineChartPainter extends CustomPainter {
       fontSize: 11,
       fontWeight: FontWeight.w600,
     );
-    final paintedMax = <double>{};
+    final paintedLabels = <double>{};
     for (int i = 0; i < points.length; i++) {
       final y = points[i].y;
-      if ((y - minValue).abs() < 0.001 || (y - maxValue).abs() < 0.001) {
-        if (paintedMax.contains(y)) continue;
-        paintedMax.add(y);
+      final isMin = (y - minValue).abs() < 0.001;
+      final isMax = (y - maxValue).abs() < 0.001;
+      if (isMin || isMax) {
+        if (isMin && minValue == 0 && maxValue > 0) {
+          continue;
+        }
+        if (paintedLabels.contains(y)) continue;
+        paintedLabels.add(y);
         final tp = TextPainter(
           text: TextSpan(
             text: '${_OverviewScreenState._formatCurrency(y.round())}d',
