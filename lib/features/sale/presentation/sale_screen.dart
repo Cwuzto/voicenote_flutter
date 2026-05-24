@@ -31,6 +31,9 @@ class _SaleScreenState extends State<SaleScreen> {
   final SaleVoiceController _voiceController = SaleVoiceController();
   final SaleStateController _state = SaleStateController();
 
+  // THÊM DÒNG NÀY ĐỂ GIỮ FOCUS CHO THANH TÌM KIẾM
+  final GlobalKey _quickBarKey = GlobalKey();
+
   bool _savingOrder = false;
   bool _voiceBusy = false;
   bool _voiceCancelled = false;
@@ -86,7 +89,18 @@ class _SaleScreenState extends State<SaleScreen> {
             child: SafeArea(
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onTap: () => FocusScope.of(context).unfocus(),
+                onTap: () {
+                  FocusScope.of(context).unfocus();
+                  // Thêm điều kiện: Nếu đang bật mic thì hủy mic
+                  if (_listening || _voiceBusy) {
+                    // unawaited(_cancelVoice()); 
+                    // Lưu ý: Dùng _cancelVoice() sẽ xóa luôn chữ đang nhận diện. 
+                    // Nếu muốn giữ lại phần chữ đang nói dở, bạn có thể thay bằng 
+                    unawaited(_stopVoiceWhenTyping());
+                  } else if (_state.panelMode != SaleBottomPanelMode.none) {
+                    _state.setPanelMode(SaleBottomPanelMode.none);
+                  }
+                },
                 child: Column(
                   children: [
                     _buildHeader(canDone, total),
@@ -121,17 +135,7 @@ class _SaleScreenState extends State<SaleScreen> {
                                     key: const ValueKey('sale-cart'),
                                     child: _buildCart(total),
                                   ),
-                          ),
-                          if (gridPanelVisible)
-                            Positioned.fill(
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.translucent,
-                                onTap: () {
-                                  FocusScope.of(context).unfocus();
-                                  _state.setPanelMode(SaleBottomPanelMode.none);
-                                },
-                              ),
-                            ),
+                          )
                         ],
                       ),
                     ),
@@ -633,6 +637,7 @@ class _SaleScreenState extends State<SaleScreen> {
 
   Widget _buildQuickBar() {
     return AnimatedBuilder(
+      key: _quickBarKey,
       animation: Listenable.merge([_lineController, _lineFocusNode]),
       builder: (context, _) {
         final hasText = _lineController.text.trim().isNotEmpty;
@@ -731,6 +736,10 @@ class _SaleScreenState extends State<SaleScreen> {
                     borderRadius: BorderRadius.circular(999),
                     onTap: () {
                       FocusScope.of(context).unfocus();
+                      // Thêm lệnh tắt mic ở đây
+                      if (_listening || _voiceBusy) {
+                        unawaited(_cancelVoice());
+                      }
                       _state.toggleGridPanel();
                     },
                     child: Container(
@@ -990,6 +999,12 @@ class _SaleScreenState extends State<SaleScreen> {
         return;
       }
     }
+
+    //Đóng panel ngay lập tức khi chạm vào ô tìm kiếm
+    if (_state.panelMode != SaleBottomPanelMode.none) {
+      _state.setPanelMode(SaleBottomPanelMode.none);
+    }
+
     setState(() {
       _searchExpanded = true;
       _showPrefocusSuggestions = true;
@@ -1003,9 +1018,6 @@ class _SaleScreenState extends State<SaleScreen> {
         setState(() {
           _showPrefocusSuggestions = false;
         });
-      }
-      if (_state.panelMode != SaleBottomPanelMode.none) {
-        _state.setPanelMode(SaleBottomPanelMode.none);
       }
     });
   }
@@ -1030,6 +1042,9 @@ class _SaleScreenState extends State<SaleScreen> {
   }
 
   Future<void> _pickCustomerName() async {
+    if (_listening || _voiceBusy) {
+      unawaited(_cancelVoice());
+    }
     final controller = TextEditingController(
       text: _state.customer == 'Khách hàng, phòng ban...'
           ? ''
@@ -1635,6 +1650,9 @@ class _SaleScreenState extends State<SaleScreen> {
   }
 
   Future<void> _openEditLineDialog(int index) async {
+    if (_listening || _voiceBusy) {
+      unawaited(_cancelVoice());
+    }
     if (index < 0 || index >= _state.cart.length) return;
     final item = _state.cart[index];
     final nameController = TextEditingController(text: item.productName);
