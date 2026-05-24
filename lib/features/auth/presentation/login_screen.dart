@@ -70,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const Text(
                         'Đăng nhập',
-                        textAlign: TextAlign.left,
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.w800,
@@ -80,6 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 4),
                       const Text(
                         'Quản lý cửa hàng nhanh hơn cùng voicenote',
+                        textAlign: TextAlign.center,
                         style: TextStyle(color: Color(0xFF64748B)),
                       ),
                       const SizedBox(height: 24),

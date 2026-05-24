@@ -84,6 +84,7 @@ create table if not exists public.bank_accounts (
   bank_name text not null,
   account_number text not null,
   account_holder text not null,
+  is_default boolean not null default false,
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );

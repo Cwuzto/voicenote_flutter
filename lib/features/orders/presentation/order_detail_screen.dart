@@ -277,9 +277,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: _openQrPayment,
+                      onPressed: order.status == OrderStatusVm.paid
+                          ? null
+                          : _openQrPayment,
                       icon: const Icon(Icons.qr_code_2_rounded),
-                      label: const Text('Hiển thị QR thanh toán'),
+                      label: Text(
+                        order.status == OrderStatusVm.paid
+                            ? 'Đơn đã thanh toán'
+                            : 'Hiển thị QR thanh toán',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -568,7 +574,7 @@ class _ReceivePaymentButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final backgroundColor = enabled
-        ? const Color(0xFF0F6FFF)
+        ? const Color(0xFF16A34A)
         : const Color(0xFFE2E8F0);
     final foregroundColor = enabled ? Colors.white : const Color(0xFF94A3B8);
 
@@ -585,7 +591,7 @@ class _ReceivePaymentButton extends StatelessWidget {
             boxShadow: enabled
                 ? [
                     BoxShadow(
-                      color: const Color(0xFF0F6FFF).withValues(alpha: 0.22),
+                      color: const Color(0xFF16A34A).withValues(alpha: 0.24),
                       blurRadius: 18,
                       offset: const Offset(0, 10),
                     ),

@@ -3,7 +3,8 @@
 Run in order from Supabase SQL Editor:
 1. `supabase/sql/001_schema.sql`
 2. `supabase/sql/002_rls.sql`
-3. `supabase/sql/003_seed_demo.sql` (edit username first)
+3. `supabase/sql/011_add_is_default_to_bank_accounts.sql`
+4. `supabase/sql/003_seed_demo.sql` (edit username first)
 
 For the current Bao grocery demo reset / reseed flow, use:
 - `supabase/sql/008_reseed_bao_grocery_demo.sql`
